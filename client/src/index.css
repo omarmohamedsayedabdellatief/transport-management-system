@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased min-h-screen font-sans;
+  }
+}
+@theme { --font-sans: "Lemonada", sans-serif; }
+body, button, input, select, textarea { font-family: "Lemonada", sans-serif; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), select { cursor: pointer; }
+:focus-visible { outline: 3px solid #087f75; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* Keep the retained fleet screens on the same brand palette. */
+@theme {
+  --color-blue-50: #eef8f3;
+  --color-blue-100: #d9f0e4;
+  --color-blue-200: #b5e2ce;
+  --color-blue-300: #82cdb3;
+  --color-blue-400: #43b698;
+  --color-blue-500: #18947e;
+  --color-blue-600: #087f75;
+  --color-blue-700: #07665b;
+  --color-blue-800: #115247;
+  --color-blue-900: #133f37;
+  --color-blue-950: #092d28;
+}
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
+  .ops-content .overflow-x-auto { max-width: 100%; overscroll-behavior-inline: contain; }
+}
+
+/* UI Performance & Scrolling Enhancements */
+html, body, .ops-main-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+.ops-content {
+  contain: style;
+}
+
+.ops-panel, .ops-table-wrap, .stat-card {
+  contain: content;
+}
+
+/* =========================================================================
+   PRINT STYLES FOR CLEAN INVOICES & STATEMENTS (طباعة الفواتير وكشوف الحسابات)
+   ========================================================================= */
+@media print {
+  /* 1. Global Print Resets */
+  html, body {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 10pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 2. Hide Web App Layout & UI Chrome */
+  #root,
+  .ops-app-shell,
+  .ops-main-shell,
+  .ops-skip-link,
+  .ops-actions,
+  .ops-no-print,
+  .print-hide,
+  [class*="print:hidden"],
+  button,
+  select,
+  input {
+    display: none !important;
+  }
+
+  /* 3. Make the active printable modal full-page static */
+  .modal-portal-root,
+  .modal-portal-root > div,
+  .printable-sheet-container {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .printable-sheet-container * {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* 4. Page layout and table formatting */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm;
+  }
+
+  table {
+    page-break-inside: auto !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  th, td {
+    padding: 6px 8px !important;
+  }
+}
