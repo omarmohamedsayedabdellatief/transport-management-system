@@ -307,9 +307,9 @@ export const Ledger: React.FC = () => {
   });
 
   const { data: payrollData, isLoading: isPayrollLoading } = useQuery({
-    queryKey: ['accounting-payroll'],
+    queryKey: ['accounting-payroll', selectedMonth, selectedYear],
     queryFn: async () => {
-      const res = await api.get('/accounting/staff-payroll');
+      const res = await api.get(`/accounting/staff-payroll?month=${selectedMonth}&year=${selectedYear}`);
       return res.data?.data || [];
     },
     enabled: activeTab === 'payroll',

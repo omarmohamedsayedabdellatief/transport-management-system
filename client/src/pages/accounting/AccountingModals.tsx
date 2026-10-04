@@ -358,8 +358,8 @@ export const AddOperationModal: React.FC<{
         )}
 
         {/* 3. Main Form Grid */}
-        <div className="grid grid-cols-2 gap-3 text-xs">
-          {/* Day / Month */}
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          {/* Day / Month / Year */}
           <div>
             <label className="font-bold text-slate-700 block mb-1">{isAr ? 'اليوم' : 'Day'}</label>
             <input
@@ -368,7 +368,7 @@ export const AddOperationModal: React.FC<{
               max="31"
               value={form.day}
               onChange={(e) => setForm({ ...form, day: Number(e.target.value) })}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold"
+              className="w-full border border-slate-200 rounded-xl px-2.5 py-2 font-bold text-center"
             />
           </div>
           <div>
@@ -379,12 +379,23 @@ export const AddOperationModal: React.FC<{
               max="12"
               value={form.month}
               onChange={(e) => setForm({ ...form, month: Number(e.target.value) })}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold"
+              className="w-full border border-slate-200 rounded-xl px-2.5 py-2 font-bold text-center"
+            />
+          </div>
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">{isAr ? 'السنة' : 'Year'}</label>
+            <input
+              type="number"
+              min="2020"
+              max="2035"
+              value={form.year}
+              onChange={(e) => setForm({ ...form, year: Number(e.target.value) })}
+              className="w-full border border-slate-200 rounded-xl px-2.5 py-2 font-bold text-center font-mono"
             />
           </div>
 
           {/* Client Selection */}
-          <div className="col-span-2">
+          <div className="col-span-3">
             <label className="font-bold text-slate-700 block mb-1">
               {isAr ? 'الشركة / العميل *' : 'Client / Company *'}
             </label>
@@ -757,9 +768,21 @@ export const AddOvertimeModal: React.FC<{
   onSubmit: (data: any) => void;
   isPending: boolean;
   isAr: boolean;
+  defaultMonth?: number;
+  defaultYear?: number;
   dbDrivers?: any[];
   dbRoutes?: any[];
-}> = React.memo(({ isOpen, onClose, onSubmit, isPending, isAr, dbDrivers = [], dbRoutes = [] }) => {
+}> = React.memo(({
+  isOpen,
+  onClose,
+  onSubmit,
+  isPending,
+  isAr,
+  defaultMonth = new Date().getMonth() + 1,
+  defaultYear = new Date().getFullYear(),
+  dbDrivers = [],
+  dbRoutes = [],
+}) => {
   const [form, setForm] = useState({
     dayOfWeek: 'السبت',
     date: new Date().toISOString().split('T')[0],
@@ -772,6 +795,23 @@ export const AddOvertimeModal: React.FC<{
     branch: '',
     notes: '',
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      const now = new Date();
+      const curYear = now.getFullYear();
+      const curMonth = now.getMonth() + 1;
+      let defaultDate = now.toISOString().split('T')[0];
+      if (defaultYear && defaultMonth && (defaultYear !== curYear || defaultMonth !== curMonth)) {
+        const mStr = String(defaultMonth).padStart(2, '0');
+        defaultDate = `${defaultYear}-${mStr}-01`;
+      }
+      setForm((prev) => ({
+        ...prev,
+        date: defaultDate,
+      }));
+    }
+  }, [isOpen, defaultMonth, defaultYear]);
 
   return (
     <ModalPortal isOpen={isOpen}>
@@ -940,9 +980,21 @@ export const AddExpenseModal: React.FC<{
   onSubmit: (data: any) => void;
   isPending: boolean;
   isAr: boolean;
+  defaultMonth?: number;
+  defaultYear?: number;
   treasuryAccounts?: any[];
   dbVehicles?: any[];
-}> = React.memo(({ isOpen, onClose, onSubmit, isPending, isAr, treasuryAccounts = [], dbVehicles = [] }) => {
+}> = React.memo(({
+  isOpen,
+  onClose,
+  onSubmit,
+  isPending,
+  isAr,
+  defaultMonth = new Date().getMonth() + 1,
+  defaultYear = new Date().getFullYear(),
+  treasuryAccounts = [],
+  dbVehicles = [],
+}) => {
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     category: 'سولار ووقود',
@@ -952,6 +1004,23 @@ export const AddExpenseModal: React.FC<{
     accountId: '',
     notes: '',
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      const now = new Date();
+      const curYear = now.getFullYear();
+      const curMonth = now.getMonth() + 1;
+      let defaultDate = now.toISOString().split('T')[0];
+      if (defaultYear && defaultMonth && (defaultYear !== curYear || defaultMonth !== curMonth)) {
+        const mStr = String(defaultMonth).padStart(2, '0');
+        defaultDate = `${defaultYear}-${mStr}-01`;
+      }
+      setForm((prev) => ({
+        ...prev,
+        date: defaultDate,
+      }));
+    }
+  }, [isOpen, defaultMonth, defaultYear]);
 
   return (
     <ModalPortal isOpen={isOpen}>
@@ -1801,17 +1870,9 @@ export const ClientInvoiceModal: React.FC<{
     enabled: isOpen && !!form.companyName,
   });
 
-  const rawOps = (Array.isArray(liveOpsData) && liveOpsData.length > 0)
-    ? liveOpsData
-    : (Array.isArray(tripsData) && tripsData.length > 0)
-    ? tripsData
-    : Array.isArray(liveOpsData)
-    ? liveOpsData
-    : Array.isArray(tripsData)
-    ? tripsData
-    : [];
-  const operations: any[] = Array.isArray(rawOps) ? rawOps : [];
-  const isLoading = isFetchingLiveOps || invoiceTripsLoading || isLoadingTrips;
+  const rawOps = Array.isArray(liveOpsData) ? liveOpsData : [];
+  const operations: any[] = rawOps;
+  const isLoading = isFetchingLiveOps;
 
   const totalTripsCount = operations.reduce((sum: number, op: any) => sum + (Number(op.tripCount) || 1), 0);
   const subtotal = operations.reduce(
@@ -2052,7 +2113,7 @@ export const ClientInvoiceModal: React.FC<{
                         <tr key={op.id || idx} className="hover:bg-slate-50/60">
                           <td className="p-2.5 text-center text-slate-400">{idx + 1}</td>
                           <td className="p-2.5 font-bold">
-                            {op.day ? `يوم ${op.day}` : ''} ({form.month}/{form.year})
+                            {op.day ? `يوم ${op.day}` : ''} ({op.month || form.month}/{op.year || form.year})
                           </td>
                           <td className="p-2.5 text-slate-700 font-semibold">{op.routeName || 'خط سير رئيسي'}</td>
                           <td className="p-2.5">
@@ -2991,7 +3052,7 @@ export const SupplierInvoiceModal: React.FC<{
                           <tr key={op.id || idx} className="hover:bg-purple-50/40">
                             <td className="p-2.5 text-center text-slate-400">{idx + 1}</td>
                             <td className="p-2.5 font-bold">
-                              {op.day ? `يوم ${op.day}` : ''} ({form.month}/{form.year})
+                              {op.day ? `يوم ${op.day}` : ''} ({op.month || form.month}/{op.year || form.year})
                             </td>
                             <td className="p-2.5 text-purple-900 font-bold">{op.companyName || '-'}</td>
                             <td className="p-2.5 text-slate-700 font-semibold">{op.routeName || 'خط سير'}</td>
@@ -3910,13 +3971,30 @@ export const StaffPayrollModal: React.FC<{
   });
 
   useEffect(() => {
-    if (isOpen && initialData) {
-      setForm((prev) => ({
-        ...prev,
-        ...initialData,
-      }));
+    if (isOpen) {
+      if (initialData) {
+        setForm((prev) => ({
+          ...prev,
+          ...initialData,
+        }));
+      } else {
+        const now = new Date();
+        const curYear = now.getFullYear();
+        const curMonth = now.getMonth() + 1;
+        let defaultDate = now.toISOString().split('T')[0];
+        if (defaultYear && defaultMonth && (defaultYear !== curYear || defaultMonth !== curMonth)) {
+          const mStr = String(defaultMonth).padStart(2, '0');
+          defaultDate = `${defaultYear}-${mStr}-01`;
+        }
+        setForm((prev) => ({
+          ...prev,
+          date: defaultDate,
+          month: defaultMonth || curMonth,
+          year: defaultYear || curYear,
+        }));
+      }
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, defaultMonth, defaultYear]);
 
   const selectedAccount = treasuryAccounts.find((a: any) => a.id === form.accountId);
   const availableBalance = Number(selectedAccount?.currentBalance ?? 0);

@@ -12,6 +12,17 @@ if (fs.existsSync(logFile)) {
   try { fs.unlinkSync(logFile); } catch (e) {}
 }
 
+// Ensure ports 5000 and 5173 are free before starting
+try {
+  execSync('taskkill /F /IM cloudflared.exe', { stdio: 'ignore' });
+} catch (e) {}
+try {
+  execSync(
+    'powershell -NoProfile -Command "$ports = @(5000, 5173, 5174); foreach ($p in $ports) { $conns = Get-NetTCPConnection -LocalPort $p -ErrorAction SilentlyContinue; if ($conns) { $conns | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue } } }"',
+    { stdio: 'ignore' }
+  );
+} catch (e) {}
+
 console.log('🚀 [1/3] جاري تشغيل سيرفر الـ API (Port 5000)...');
 const serverProc = spawn('npm.cmd', ['run', 'dev'], {
   cwd: serverDir,

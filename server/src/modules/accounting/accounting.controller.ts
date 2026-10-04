@@ -350,7 +350,7 @@ export class AccountingController {
 
   static async listStaffPayroll(req: Request, res: Response, next: NextFunction) {
     try {
-      const data = await AccountingService.listStaffPayroll();
+      const data = await AccountingService.listStaffPayroll(req.query as any);
       res.json({ success: true, data });
     } catch (error) {
       next(error);

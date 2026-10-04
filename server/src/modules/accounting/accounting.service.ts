@@ -1824,8 +1824,30 @@ export class AccountingService {
   // 8. STAFF PAYROLL (رواتب الموظفين الإداريين)
   // =========================================================================
 
-  static async listStaffPayroll() {
+  static async listStaffPayroll(query?: { month?: number; year?: number; search?: string }) {
+    const where: Prisma.StaffPayrollWhereInput = {};
+    if (query?.year && query?.month) {
+      const year = Number(query.year);
+      const month = Number(query.month);
+      const start = new Date(Date.UTC(year, month - 1, 1));
+      const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+      where.date = { gte: start, lte: end };
+    } else if (query?.year) {
+      const year = Number(query.year);
+      const start = new Date(Date.UTC(year, 0, 1));
+      const end = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+      where.date = { gte: start, lte: end };
+    }
+
+    if (query?.search) {
+      where.OR = [
+        { employeeName: { contains: query.search, mode: 'insensitive' } },
+        { jobTitle: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
     return prisma.staffPayroll.findMany({
+      where,
       orderBy: { date: 'desc' },
     });
   }
@@ -1932,6 +1954,22 @@ export class AccountingService {
       ];
     }
 
+    const whereMaintenance: Prisma.MaintenanceRecordWhereInput = {};
+    if (query.month && query.year) {
+      const year = Number(query.year);
+      const month = Number(query.month);
+      const start = new Date(Date.UTC(year, month - 1, 1));
+      const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+      whereMaintenance.serviceDate = { gte: start, lte: end };
+      whereInst.bankDueDate = { gte: start, lte: end };
+    } else if (query.year) {
+      const year = Number(query.year);
+      const start = new Date(Date.UTC(year, 0, 1));
+      const end = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+      whereMaintenance.serviceDate = { gte: start, lte: end };
+      whereInst.bankDueDate = { gte: start, lte: end };
+    }
+
     const [vehicles, ops, expenses, installments, maintenanceRecords] = await Promise.all([
       prisma.vehicle.findMany({
         where: whereVehicles,
@@ -1972,6 +2010,7 @@ export class AccountingService {
         orderBy: [{ bankDueDate: 'asc' }, { installmentNumber: 'asc' }],
       }),
       prisma.maintenanceRecord.findMany({
+        where: whereMaintenance,
         include: { vehicle: true },
       }),
     ]);
@@ -2086,18 +2125,35 @@ export class AccountingService {
       whereExp.month = Number(query.month);
     }
 
+    const whereMaintenance: Prisma.MaintenanceRecordWhereInput = {};
+    const whereInstallments: Prisma.InstallmentWhereInput = { status: 'PAID' };
+
     if (query.month && query.year) {
-      const start = new Date(Number(query.year), Number(query.month) - 1, 1);
-      const end = new Date(Number(query.year), Number(query.month), 0, 23, 59, 59);
+      const year = Number(query.year);
+      const month = Number(query.month);
+      const start = new Date(Date.UTC(year, month - 1, 1));
+      const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
       wherePayroll.date = { gte: start, lte: end };
+      whereMaintenance.serviceDate = { gte: start, lte: end };
+      whereInstallments.bankDueDate = { gte: start, lte: end };
+    } else if (query.year) {
+      const year = Number(query.year);
+      const start = new Date(Date.UTC(year, 0, 1));
+      const end = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+      wherePayroll.date = { gte: start, lte: end };
+      whereMaintenance.serviceDate = { gte: start, lte: end };
+      whereInstallments.bankDueDate = { gte: start, lte: end };
     }
 
     const [opsSummary, expensesSummary, payrolls, installments, maintenanceSummary, period] = await Promise.all([
       this.getDailyOperationsSummary(query),
       this.getExpensesSummary(query),
       prisma.staffPayroll.findMany({ where: wherePayroll }),
-      prisma.installment.findMany({ where: { status: 'PAID' } }),
-      prisma.maintenanceRecord.aggregate({ _sum: { cost: true } }),
+      prisma.installment.findMany({ where: whereInstallments }),
+      prisma.maintenanceRecord.aggregate({
+        where: whereMaintenance,
+        _sum: { cost: true },
+      }),
       query.year && query.month
         ? prisma.financialPeriod.findUnique({
             where: { year_month: { year: Number(query.year), month: Number(query.month) } },

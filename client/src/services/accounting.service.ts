@@ -270,8 +270,8 @@ export const accountingApi = {
   },
 
   // Staff Payroll
-  getStaffPayroll: async () => {
-    const res = await api.get('/accounting/staff-payroll');
+  getStaffPayroll: async (params?: any) => {
+    const res = await api.get('/accounting/staff-payroll', { params });
     return res.data.data;
   },
   createStaffPayroll: async (data: any) => {
