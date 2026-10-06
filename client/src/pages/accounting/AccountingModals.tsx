@@ -1,3 +1,5 @@
+import './accounting.css';
+import { treasuryAccountLabel } from './treasury-label';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -35,7 +37,7 @@ export const ModalPortal: React.FC<{
 }> = ({ isOpen, children }) => {
   useLockBodyScroll(isOpen);
   if (!isOpen || typeof document === 'undefined') return null;
-  return createPortal(children, document.body);
+  return createPortal(<div className="accounting-modal">{children}</div>, document.body);
 };
 
 // =========================================================================
@@ -997,9 +999,9 @@ export const AddExpenseModal: React.FC<{
 }) => {
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
-    category: 'سولار ووقود',
+    expenseType: 'FUEL',
+    category: '',
     amount: 500,
-    branch: '',
     vehicleNumber: '',
     accountId: '',
     notes: '',
@@ -1042,10 +1044,19 @@ export const AddExpenseModal: React.FC<{
           </div>
 
           <div>
-            <label className="font-bold text-slate-700 block mb-1">البيان والتصنيف</label>
+            <label htmlFor="expense-type" className="font-bold text-slate-700 block mb-1">{isAr ? 'نوع المصروف' : 'Expense type'}</label>
+            <select id="expense-type" value={form.expenseType} onChange={e=>setForm({...form,expenseType:e.target.value})} className="w-full border border-slate-200 rounded-xl px-3 py-2">
+              <option value="FUEL">{isAr ? 'سولار ووقود' : 'Fuel'}</option>
+              <option value="MAINTENANCE">{isAr ? 'صيانة' : 'Maintenance'}</option>
+              <option value="OTHER">{isAr ? 'مصروفات أخرى' : 'Other expenses'}</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">بيان المصروف</label>
             <input
               type="text"
-              placeholder="مثال: استهلاك سولار سيارة / صيانة فلاتر"
+              placeholder="وصف المصروف"
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
               className="w-full border border-slate-200 rounded-xl px-3 py-2"
@@ -1074,23 +1085,13 @@ export const AddExpenseModal: React.FC<{
               <option value="">{isAr ? '-- بدون خصم من الخزينة --' : '-- No Treasury deduction --'}</option>
               {treasuryAccounts.map((acc: any) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.name} (الرصيد: {Number(acc.currentBalance || 0).toLocaleString()} ج.م)
+                  {treasuryAccountLabel(acc)}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">الفرع أو الخط</label>
-              <input
-                type="text"
-                placeholder="المنيب / اكتوبر"
-                value={form.branch}
-                onChange={(e) => setForm({ ...form, branch: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2"
-              />
-            </div>
+          <div>
             <div>
               <label className="font-bold text-slate-700 block mb-1">رقم لوحة المركبة</label>
               <input
@@ -1370,7 +1371,7 @@ export const ClientReceiptModal: React.FC<{
                 <option value="">{isAr ? '-- اختر الخزينة أو البنك --' : '-- Select Account --'}</option>
                 {treasuryAccounts.map((acc: any) => (
                   <option key={acc.id} value={acc.id}>
-                    {acc.kind === 'BANK' ? '🏦' : '💼'} {acc.name} (الرصيد: {Number(acc.currentBalance || 0).toLocaleString()} ج.م)
+                    {acc.kind === 'BANK' ? '🏦' : '💼'} {treasuryAccountLabel(acc)}
                   </option>
                 ))}
               </select>
@@ -2529,7 +2530,7 @@ export const SupplierPayModal: React.FC<{
   const supDueBalance = Number(
     targetSup?.balance ?? (targetSup as any)?.currentBalance ?? initialData?.maxDueBalance ?? initialData?.amount ?? 0
   );
-  const accAvailableFunds = Number(targetAcc?.currentBalance || 0);
+  const accAvailableFunds = Number(targetAcc?.currentBalance ?? Infinity);
   const amountNum = Number(form.amount || 0);
 
   const isOverSupplierDue = !!form.supplierName && amountNum > supDueBalance && supDueBalance > 0;
@@ -2596,12 +2597,12 @@ export const SupplierPayModal: React.FC<{
               <option value="">{isAr ? '-- اختر الخزينة أو الحساب --' : '-- Select Account --'}</option>
               {treasuryAccounts.map((acc: any) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.name} (الرصيد المتاح: {Number(acc.currentBalance || 0).toLocaleString()} ج.م)
+                  {treasuryAccountLabel(acc)}
                 </option>
               ))}
             </select>
 
-            {targetAcc && (
+            {targetAcc?.currentBalance != null && (
               <div className="mt-1.5 p-2 rounded-xl bg-blue-50/70 border border-blue-200/80 flex items-center justify-between">
                 <span className="font-bold text-blue-800">السيولة المتاحة في {targetAcc.name}:</span>
                 <span className="font-black text-blue-900 text-sm">
@@ -3143,183 +3144,7 @@ export const SupplierInvoiceModal: React.FC<{
 // =========================================================================
 // 9. ADD INSTALLMENT MODAL
 // =========================================================================
-export const AddInstallmentModal: React.FC<{
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (data: any) => void;
-  isPending: boolean;
-  isAr: boolean;
-  dbVehicles?: any[];
-}> = React.memo(({ isOpen, onClose, onSubmit, isPending, isAr, dbVehicles = [] }) => {
-  const [form, setForm] = useState({
-    category: 'VEHICLE',
-    assetName: '',
-    vehiclePlate: '',
-    bankName: 'بنك بيت التمويل الكويتي KFH',
-    chequeNumber: '',
-    installmentNumber: 1,
-    bankDueDate: new Date().toISOString().split('T')[0],
-    bankAmount: 12500,
-    clientDueDate: '',
-    clientAmount: 0,
-    status: 'PENDING',
-    notes: '',
-  });
-
-  return (
-    <ModalPortal isOpen={isOpen}>
-      <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overscroll-contain">
-        <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto overscroll-contain">
-        <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2">
-          {isAr ? 'إضافة قسط بنكي / أصل جديد' : 'Add Bank Installment'}
-        </h3>
-
-        <div className="space-y-3 text-xs">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">نوع وفئة الأصل</label>
-              <select
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value as any })}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold"
-              >
-                <option value="VEHICLE">أقساط سيارات وأتوبيسات</option>
-                <option value="PROPERTY_OFFICE">أقساط مقر المكتب والوحدات</option>
-              </select>
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">رقم القسط</label>
-              <input
-                type="number"
-                min={1}
-                value={form.installmentNumber}
-                onChange={(e) => setForm({ ...form, installmentNumber: Number(e.target.value) })}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="font-bold text-slate-700 block mb-1">اسم الأصل وبيان المركبة</label>
-            <input
-              type="text"
-              placeholder="مثال: أتوبيس مرسيدس 50 راكب (قسط شهر 9)"
-              value={form.assetName}
-              onChange={(e) => setForm({ ...form, assetName: e.target.value })}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 font-medium"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">رقم لوحة المركبة</label>
-              <input
-                type="text"
-                list="inst-vehicles-datalist"
-                placeholder="أ ب ج 1234"
-                value={form.vehiclePlate}
-                onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono"
-              />
-              <datalist id="inst-vehicles-datalist">
-                {dbVehicles.map((v: any) => (
-                  <option key={v.id} value={v.plateNumber} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">اسم البنك المسحوب عليه</label>
-              <input
-                type="text"
-                placeholder="بيت التمويل الكويتي KFH / بنك مصر / FAB"
-                value={form.bankName}
-                onChange={(e) => setForm({ ...form, bankName: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">تاريخ استحقاق البنك</label>
-              <input
-                type="date"
-                value={form.bankDueDate}
-                onChange={(e) => setForm({ ...form, bankDueDate: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold"
-                required
-              />
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">قيمة قسط البنك (ج.م)</label>
-              <input
-                type="number"
-                value={form.bankAmount}
-                onChange={(e) => setForm({ ...form, bankAmount: Number(e.target.value) })}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 font-black text-rose-600 text-sm"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">قسط العميل المقابل (إن وجد)</label>
-              <input
-                type="number"
-                placeholder="0"
-                value={form.clientAmount || ''}
-                onChange={(e) => setForm({ ...form, clientAmount: Number(e.target.value) })}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-emerald-700 font-bold"
-              />
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">رقم الشيك البنكي</label>
-              <input
-                type="text"
-                placeholder="CHQ-998811"
-                value={form.chequeNumber}
-                onChange={(e) => setForm({ ...form, chequeNumber: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="font-bold text-slate-700 block mb-1">ملاحظات</label>
-            <input
-              type="text"
-              placeholder="أية تفاصيل تخص القسط أو التمويل"
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
-          >
-            إلغاء
-          </button>
-          <button
-            type="button"
-            onClick={() => onSubmit(form)}
-            disabled={isPending || !form.assetName || !form.bankAmount}
-            className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {isPending ? 'جاري الحفظ...' : 'حفظ القسط'}
-          </button>
-        </div>
-      </div>
-    </div>
-    </ModalPortal>
-  );
-});
+export { AddInstallmentModal } from './components/InstallmentModals';
 
 // =========================================================================
 // 10. CREATE ACCOUNT MODAL
@@ -3530,7 +3355,7 @@ export const TransferModal: React.FC<{
               <option value="">-- اختر الحساب المسحوب منه --</option>
               {treasuryAccounts.map((acc: any) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.name} (المتاح: {Number(acc.currentBalance || 0).toLocaleString()} ج.م)
+                  {treasuryAccountLabel(acc)}
                 </option>
               ))}
             </select>
@@ -3549,7 +3374,7 @@ export const TransferModal: React.FC<{
                 .filter((acc: any) => acc.id !== form.fromAccountId)
                 .map((acc: any) => (
                   <option key={acc.id} value={acc.id}>
-                    {acc.name} (الحالي: {Number(acc.currentBalance || 0).toLocaleString()} ج.م)
+                    {treasuryAccountLabel(acc)}
                   </option>
                 ))}
             </select>
@@ -3705,7 +3530,7 @@ export const DriverPayModal: React.FC<{
   if (!isOpen) return null;
 
   const selectedAccount = treasuryAccounts.find((a: any) => a.id === form.accountId);
-  const availableBalance = Number(selectedAccount?.currentBalance ?? 0);
+  const availableBalance = Number(selectedAccount?.currentBalance ?? Infinity);
   const amountNum = Number(form.amount || 0);
   const isOverTreasury = Boolean(form.accountId && amountNum > availableBalance);
   const isOverDue = Boolean(form.maxPayable > 0 && amountNum > form.maxPayable);
@@ -3807,7 +3632,7 @@ export const DriverPayModal: React.FC<{
               <option value="">-- اختر الخزينة أو البنك --</option>
               {treasuryAccounts.map((acc: any) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.kind === 'CASH' ? '💵' : '🏦'} {acc.name} (الرصيد المتاح: {Number(acc.currentBalance || 0).toLocaleString()} ج.م)
+                  {acc.kind === 'CASH' ? '💵' : '🏦'} {treasuryAccountLabel(acc)}
                 </option>
               ))}
             </select>
@@ -3997,7 +3822,7 @@ export const StaffPayrollModal: React.FC<{
   }, [isOpen, initialData, defaultMonth, defaultYear]);
 
   const selectedAccount = treasuryAccounts.find((a: any) => a.id === form.accountId);
-  const availableBalance = Number(selectedAccount?.currentBalance ?? 0);
+  const availableBalance = Number(selectedAccount?.currentBalance ?? Infinity);
   const basic = Number(form.basicSalary || 0);
   const ot = Number(form.overtime || 0);
   const deduct = Number(form.deductions || 0);
@@ -4151,7 +3976,7 @@ export const StaffPayrollModal: React.FC<{
               <option value="">-- اختر الخزينة أو البنك --</option>
               {treasuryAccounts.map((acc: any) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.kind === 'CASH' ? '💵' : '🏦'} {acc.name} (الرصيد المتاح: {Number(acc.currentBalance || 0).toLocaleString()} ج.م)
+                  {acc.kind === 'CASH' ? '💵' : '🏦'} {treasuryAccountLabel(acc)}
                 </option>
               ))}
             </select>

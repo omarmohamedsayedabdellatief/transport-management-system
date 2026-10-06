@@ -1,3 +1,6 @@
+import { createInstallment, installmentView, recordInstallmentPayment } from './installments.js';
+import { expenseType } from './expense-types.js';
+import { driverSettlements, recordDriverEntry } from './driver-settlements.js';
 import { Prisma, TripStatus } from '@prisma/client';
 import { prisma } from '../../prisma.js';
 import * as XLSX from 'xlsx';
@@ -342,18 +345,18 @@ export class AccountingService {
     const year = typeof tripDate.getUTCFullYear === 'function' ? tripDate.getUTCFullYear() : tripDate.getFullYear();
 
     const isSupplier = trip.executionType === 'SUPPLIER' || !!trip.supplierId || !!trip.vehicle?.supplierId || !!trip.driver?.supplierId;
-    const dailyRate = Number(trip.saleAmount) > 0 ? Number(trip.saleAmount) : Number(trip.route?.clientPricePerTrip || 0);
+    const dailyRate = Number(trip.saleAmount);
 
     // If it is a supplier trip: Company driver allowance is 0 (company does not pay supplier drivers on payroll),
     // and the trip cost is the supplier's charge allocated to vehicleCost/direct supplier cost.
     const driverDailyRate = isSupplier
       ? 0
-      : (Number(trip.driverAllowance) > 0 ? Number(trip.driverAllowance) : Number(trip.route?.driverTripAllowance || 0));
+      : Number(trip.driverAllowance);
 
     // Vehicle/Supplier Cost Allocation:
     const vehicleCost = isSupplier
-      ? (Number(trip.costAmount) > 0 ? Number(trip.costAmount) : Number(trip.route?.supplierCostPerTrip || 0))
-      : (Number(trip.vehicleCost) > 0 ? Number(trip.vehicleCost) : Number(trip.route?.vehicleRentalCost || 0));
+      ? Number(trip.costAmount)
+      : Number(trip.vehicleCost);
 
     const vehiclePlate = trip.vehicle?.plateNumber || null;
     const vehicleType = trip.vehicle ? `${trip.vehicle.make || ''} ${trip.vehicle.model || ''} (${trip.vehicle.plateNumber || ''})`.trim() : null;
@@ -372,7 +375,7 @@ export class AccountingService {
     const supplierName = trip.supplier?.name || trip.route?.supplier?.name || trip.vehicle?.supplier?.name || trip.driver?.supplier?.name;
     const executionLabel = isSupplier ? `رحلة مورد (${supplierName || 'مورد خارجي'})` : 'رحلة أسطول الشركة';
     const noteTag = `[Trip#${trip.id}]`;
-    const fullNotes = `${noteTag} - ${executionLabel} (${trip.tripNumber || trip.id})`;
+    const fullNotes = `${noteTag} - ${executionLabel} (${trip.tripNumber || trip.id}) · ${trip.billingTypeName || trip.direction} · ${new Date(trip.scheduledDeparture).toLocaleTimeString("en-GB",{timeZone:"Africa/Cairo",hour:"2-digit",minute:"2-digit"})}`;
 
     const driverDisplayName = isSupplier
       ? (trip.driver?.fullName ? `${trip.driver.fullName} [مورد: ${supplierName || 'شريك'}]` : `سائق مورد (${supplierName || 'خارجي'})`)
@@ -944,256 +947,16 @@ export class AccountingService {
     return prisma.driverOvertime.delete({ where: { id } });
   }
 
-  static async getDriverMonthlySettlements(query: { month?: number; year?: number; companyName?: string }) {
-    const where: Prisma.DailyOperationWhereInput = {};
-    if (query.year) where.year = Number(query.year);
-    if (query.month) where.month = Number(query.month);
-    if (query.companyName) where.companyName = { contains: query.companyName, mode: 'insensitive' };
-
-    const overtimeWhere: Prisma.DriverOvertimeWhereInput = {};
-    if (query.month && query.year) {
-      const start = new Date(Number(query.year), Number(query.month) - 1, 1);
-      const end = new Date(Number(query.year), Number(query.month), 0, 23, 59, 59);
-      overtimeWhere.date = { gte: start, lte: end };
-    }
-
-    const [operations, recordedSettlements, overtimes, companyDrivers] = await Promise.all([
-      prisma.dailyOperation.findMany({
-        where,
-        select: {
-          driverCode: true,
-          driverName: true,
-          companyName: true,
-          branch: true,
-          driverDailyRate: true,
-          tripCount: true,
-          advancePayment: true,
-          deduction: true,
-          overtime: true,
-          netDriverPay: true,
-          totalAmount: true,
-          netRevenue: true,
-          notes: true,
-        },
-      }),
-      query.month && query.year
-        ? prisma.driverSettlement.findMany({
-            where: { month: Number(query.month), year: Number(query.year) },
-          })
-        : [],
-      prisma.driverOvertime.findMany({
-        where: overtimeWhere,
-      }),
-      prisma.driver.findMany({
-        where: { supplierId: null },
-        select: { id: true, fullName: true },
-      }),
-    ]);
-
-    const companyDriverNames = new Set(companyDrivers.map((d) => d.fullName.trim()));
-
-    const settlementMap = new Map<string, any>();
-    for (const rs of recordedSettlements) {
-      settlementMap.set(rs.driverName, rs);
-    }
-
-    const map = new Map<string, any>();
-
-    // 1. Process Daily Operations for Company Drivers only
-    for (const op of operations) {
-      const rawName = (op.driverName || '').trim();
-
-      // Skip supplier drivers or supplier trips
-      if (rawName.includes('[مورد:') || (op.notes && op.notes.includes('رحلة مورد')) || (Number(op.driverDailyRate || 0) === 0 && Number(op.netDriverPay || 0) === 0)) {
-        continue;
-      }
-
-      // Must be a company driver if we have company drivers defined, or match company driver name
-      if (companyDriverNames.size > 0 && !companyDriverNames.has(rawName) && !rawName.includes('سائق الشركة')) {
-        // Double check if it's explicitly a company driver
-        const isKnownCompany = Array.from(companyDriverNames).some(cn => rawName.includes(cn));
-        if (!isKnownCompany) continue;
-      }
-
-      const driverName = rawName;
-      if (!map.has(driverName)) {
-        const saved = settlementMap.get(driverName);
-        map.set(driverName, {
-          driverCode: op.driverCode,
-          driverName,
-          companyName: op.companyName,
-          branch: op.branch || '-',
-          driverDailyRate: Number(op.driverDailyRate || 0),
-          totalTrips: 0,
-          totalBasePay: 0,
-          totalOvertime: 0,
-          totalDeductions: 0,
-          totalAdvances: 0,
-          netPayable: 0,
-          companyBilling: 0,
-          companyProfit: 0,
-          status: saved ? saved.status : 'PENDING',
-          paidAt: saved?.paidAt || null,
-          paymentTransactionId: saved?.paymentTransactionId || null,
-        });
-      }
-
-      const item = map.get(driverName);
-      const trips = Number(op.tripCount || 0);
-      const rate = Number(op.driverDailyRate || 0);
-      item.totalTrips += trips;
-      item.totalBasePay += rate * trips;
-      item.totalOvertime += Number(op.overtime || 0);
-      item.totalDeductions += Number(op.deduction || 0);
-      item.totalAdvances += Number(op.advancePayment || 0);
-      item.netPayable += Number(op.netDriverPay || 0);
-      item.companyBilling += Number(op.totalAmount || 0);
-      item.companyProfit += Number(op.netRevenue || 0);
-    }
-
-    // 2. Add extra recorded overtime from DriverOvertime table for company drivers
-    for (const ot of overtimes) {
-      const otDriverName = (ot.driverName || '').trim();
-      if (otDriverName.includes('[مورد:')) continue;
-
-      if (map.has(otDriverName)) {
-        const item = map.get(otDriverName);
-        const otPay = Number(ot.shiftsCount || 1) * Number(ot.shiftRate || 0);
-        item.totalOvertime += otPay;
-        item.netPayable += otPay;
-      } else if (companyDriverNames.has(otDriverName)) {
-        const otPay = Number(ot.shiftsCount || 1) * Number(ot.shiftRate || 0);
-        const saved = settlementMap.get(otDriverName);
-        map.set(otDriverName, {
-          driverCode: null,
-          driverName: otDriverName,
-          companyName: '-',
-          branch: ot.branch || '-',
-          driverDailyRate: 0,
-          totalTrips: 0,
-          totalBasePay: 0,
-          totalOvertime: otPay,
-          totalDeductions: 0,
-          totalAdvances: 0,
-          netPayable: otPay,
-          companyBilling: 0,
-          companyProfit: 0,
-          status: saved ? saved.status : 'PENDING',
-          paidAt: saved?.paidAt || null,
-          paymentTransactionId: saved?.paymentTransactionId || null,
-        });
-      }
-    }
-
-    return Array.from(map.values()).sort((a, b) => b.netPayable - a.netPayable);
+  static getDriverMonthlySettlements(query: { month?: number; year?: number; companyName?: string }) {
+    return driverSettlements(query);
   }
-
-  static async payDriverSettlement(data: {
-    driverName: string;
-    month: number;
-    year: number;
-    amount: number;
-    accountId: string;
-    paymentDate?: string | Date;
-    reference?: string;
-    notes?: string;
-    actorId?: string;
-  }) {
-    const payDate = data.paymentDate ? new Date(data.paymentDate) : new Date();
-    const amount = Number(data.amount);
-    if (!amount || amount <= 0) throw new Error('مبلغ الصرف يجب أن يكون أكبر من الصفر');
-
-    return prisma.$transaction(async (tx) => {
-      const account = await tx.treasuryAccount.findUniqueOrThrow({ where: { id: data.accountId } });
-
-      // Check Treasury Liquidity Sufficiency
-      const inEntries = await tx.treasuryEntry.aggregate({
-        where: { accountId: data.accountId, kind: 'IN' },
-        _sum: { amount: true },
-      });
-      const outEntries = await tx.treasuryEntry.aggregate({
-        where: { accountId: data.accountId, kind: 'OUT' },
-        _sum: { amount: true },
-      });
-      const availableFunds = Number(inEntries._sum.amount || 0) - Number(outEntries._sum.amount || 0);
-
-      if (availableFunds < amount) {
-        throw new Error(
-          `رصيد حساب (${account.name}) غير كافٍ للصرف. المتاح: ${availableFunds.toLocaleString()} ج.م، والمطلوب صرفه: ${amount.toLocaleString()} ج.م`
-        );
-      }
-
-      // Check Driver Due Settlement for that Month/Year
-      const settlements = await AccountingService.getDriverMonthlySettlements({
-        month: Number(data.month),
-        year: Number(data.year),
-      });
-      const driverData = settlements.find(
-        (s: any) => (s.driverName || '').trim().toLowerCase() === data.driverName.trim().toLowerCase()
-      );
-      const netPayableDue = driverData ? Number(driverData.netPayable || 0) : 0;
-      const isAlreadyPaid = driverData?.status === 'PAID';
-
-      if (isAlreadyPaid || netPayableDue <= 0) {
-        throw new Error(
-          `مستحقات السائق (${data.driverName}) عن شهر ${data.month}/${data.year} مسددة بالكامل بالفعل (الرصيد: 0 ج.م). لا توجد مبالغ مستحقة للصرف.`
-        );
-      }
-
-      if (amount > netPayableDue) {
-        throw new Error(
-          `مبلغ الصرف المطلوب (${amount.toLocaleString()} ج.م) يتجاوز صافي مستحقات السائق للشهر وقدرها (${netPayableDue.toLocaleString()} ج.م)`
-        );
-      }
-
-      const txEntry = await tx.treasuryEntry.create({
-        data: {
-          accountId: data.accountId,
-          date: payDate,
-          amount: new Prisma.Decimal(amount),
-          kind: 'OUT',
-          reference: data.reference || `صرف مستحقات سائق: ${data.driverName} عن شهر ${data.month}/${data.year}`,
-          notes: data.notes || `صرف راتب وبدلات ${data.driverName}`,
-          actorId: data.actorId || 'SYSTEM',
-          requestKey: `PAY_DRIVER_${data.driverName}_${data.year}_${data.month}_${Date.now()}`,
-          fingerprint: `DRIVER_PAYMENT_${data.driverName}`,
-          sourceKey: `DRIVER_SETTLEMENT:${data.driverName}:${data.year}:${data.month}`,
-        },
-      });
-
-      const settlement = await tx.driverSettlement.upsert({
-        where: {
-          driverName_month_year: {
-            driverName: data.driverName,
-            month: Number(data.month),
-            year: Number(data.year),
-          },
-        },
-        create: {
-          driverName: data.driverName,
-          month: Number(data.month),
-          year: Number(data.year),
-          netPayable: new Prisma.Decimal(amount),
-          status: 'PAID',
-          paidAt: payDate,
-          paymentTransactionId: txEntry.id,
-          notes: data.notes,
-        },
-        update: {
-          status: 'PAID',
-          paidAt: payDate,
-          paymentTransactionId: txEntry.id,
-          notes: data.notes,
-        },
-      });
-
-      return {
-        settlement,
-        treasuryEntry: txEntry,
-        accountName: account.name,
-      };
-    });
+  static async payDriverSettlement(data: any) {
+    const entry = await recordDriverEntry({actorId:'SYSTEM', ...data}, 'PAYMENT');
+    const settlements = await driverSettlements({month:data.month,year:data.year});
+    const treasuryEntry = await prisma.treasuryEntry.findUniqueOrThrow({where:{id:entry.treasuryEntryId!}});
+    return {entry, settlement:settlements.find(s=>s.driverName===entry.driverName), treasuryEntry};
   }
+  static deductDriverSettlement(data: any) { return recordDriverEntry(data, 'DEDUCTION'); }
 
   // =========================================================================
   // 4. SUPPLIER TRANSACTIONS & SETTLEMENTS (كشف حساب ومستحقات الموردين)
@@ -1314,7 +1077,7 @@ export class AccountingService {
 
       if (availableFunds < amount) {
         throw new Error(
-          `رصيد حساب (${account.name}) غير كافٍ للصرف. المتاح: ${availableFunds.toLocaleString()} ج.م، والمطلوب صرفه: ${amount.toLocaleString()} ج.م`
+          "رصيد الخزينة غير كافٍ للصرف. راجع المالك."
         );
       }
 
@@ -1640,6 +1403,7 @@ export class AccountingService {
           year: data.year ? Number(data.year) : date.getFullYear(),
           date,
           category: data.category,
+          expenseType: expenseType(data.expenseType, data.category),
           amount,
           branch: data.branch || null,
           vehicleNumber: data.vehicleNumber || null,
@@ -1678,6 +1442,7 @@ export class AccountingService {
         year: data.year !== undefined ? Number(data.year) : undefined,
         date: data.date ? new Date(data.date) : undefined,
         category: data.category,
+        expenseType: data.expenseType !== undefined ? expenseType(data.expenseType) : undefined,
         amount: data.amount ? Number(data.amount) : undefined,
         branch: data.branch,
         vehicleNumber: data.vehicleNumber,
@@ -1711,113 +1476,27 @@ export class AccountingService {
       ];
     }
 
-    return prisma.installment.findMany({
-      where,
+    const rows = await prisma.installment.findMany({
+      where, include: { payments: { orderBy: { createdAt: 'desc' } } },
       orderBy: [{ category: 'asc' }, { bankDueDate: 'asc' }, { installmentNumber: 'asc' }],
     });
+    return rows.map(installmentView);
   }
 
   static async getInstallmentsSummary(query?: { vehiclePlate?: string }) {
-    const where: Prisma.InstallmentWhereInput = {};
-    if (query?.vehiclePlate) where.vehiclePlate = query.vehiclePlate;
-
-    const installments = await prisma.installment.findMany({ where });
-    let totalPending = 0;
-    let totalPaid = 0;
-    let pendingCount = 0;
-    let paidCount = 0;
-
-    for (const inst of installments) {
-      const amt = Number(inst.bankAmount || 0);
-      if (inst.status === 'PAID') {
-        totalPaid += amt;
-        paidCount++;
-      } else {
-        totalPending += amt;
-        pendingCount++;
-      }
-    }
-
+    const rows = await this.listInstallments(query || {});
+    const sum = (key: string) => Math.round(rows.reduce((total, r) => total + Number(r[key] || 0), 0) * 100) / 100;
     return {
-      totalPending: Math.round(totalPending * 100) / 100,
-      totalPaid: Math.round(totalPaid * 100) / 100,
-      pendingCount,
-      paidCount,
-      totalCount: installments.length,
+      totalPending: sum('bankRemaining'), totalPaid: sum('bankPaid'),
+      pendingCount: rows.filter(r => r.bankRemaining > 0).length,
+      paidCount: rows.filter(r => r.bankRemaining <= 0).length, totalCount: rows.length,
+      totalDriverDue: sum('driverAmount'), totalDriverPending: sum('driverRemaining'),
+      totalDriverCash: sum('driverCash'), totalDriverOffset: sum('driverOffset'),
     };
   }
-
-  static async createInstallment(data: any) {
-    const bankAmount = Number(data.bankAmount || 0);
-    const clientAmount = data.clientAmount ? Number(data.clientAmount) : null;
-    const margin = clientAmount !== null ? clientAmount - bankAmount : null;
-    const installmentNumber = Number(data.installmentNumber) || 1;
-    const bankDueDate = data.bankDueDate ? new Date(data.bankDueDate) : new Date();
-
-    return prisma.installment.create({
-      data: {
-        category: data.category || 'VEHICLE',
-        assetName: data.assetName || (data.vehiclePlate ? `مركبة ${data.vehiclePlate}` : 'أصل جديد'),
-        vehiclePlate: data.vehiclePlate || null,
-        installmentNumber,
-        bankDueDate,
-        bankAmount,
-        clientDueDate: data.clientDueDate ? new Date(data.clientDueDate) : null,
-        clientAmount,
-        margin,
-        chequeNumber: data.chequeNumber || null,
-        bankName: data.bankName || null,
-        status: data.status || 'PENDING',
-        notes: data.notes || null,
-      },
-    });
-  }
-
-  static async payInstallmentFromTreasury(data: {
-    installmentId: string;
-    accountId: string;
-    date?: string | Date;
-    reference?: string;
-    notes?: string;
-    actorId?: string;
-  }) {
-    const payDate = data.date ? new Date(data.date) : new Date();
-
-    return prisma.$transaction(async (tx) => {
-      const installment = await tx.installment.findUniqueOrThrow({ where: { id: data.installmentId } });
-      if (installment.status === 'PAID') throw new Error('هذا القسط مسدد بالفعل');
-
-      const amount = Number(installment.bankAmount);
-      const account = await tx.treasuryAccount.findUniqueOrThrow({ where: { id: data.accountId } });
-
-      const txEntry = await tx.treasuryEntry.create({
-        data: {
-          accountId: data.accountId,
-          date: payDate,
-          amount: new Prisma.Decimal(amount),
-          kind: 'OUT',
-          reference: data.reference || `سداد قسط رقم ${installment.installmentNumber} (${installment.assetName})`,
-          notes: data.notes || `شيك رقم: ${installment.chequeNumber || '-'} / بنك: ${installment.bankName || '-'}`,
-          actorId: data.actorId || 'SYSTEM',
-          requestKey: `INST_PAY_${installment.id}`,
-          fingerprint: `INSTALLMENT_PAYMENT_${installment.id}`,
-          sourceKey: `INSTALLMENT:${installment.id}`,
-        },
-      });
-
-      const updatedInstallment = await tx.installment.update({
-        where: { id: installment.id },
-        data: {
-          status: 'PAID',
-          notes: `${installment.notes || ''} [تم السداد من ${account.name} بتاريخ ${payDate.toISOString().slice(0, 10)}]`.trim(),
-        },
-      });
-
-      return {
-        installment: updatedInstallment,
-        treasuryEntry: txEntry,
-      };
-    });
+  static createInstallment = createInstallment;
+  static payInstallmentFromTreasury(data: any) {
+    return recordInstallmentPayment({ ...data, kind: 'BANK' });
   }
 
   // =========================================================================
@@ -1891,7 +1570,7 @@ export class AccountingService {
 
         if (availableFunds < netSalary) {
           throw new Error(
-            `رصيد حساب (${account.name}) غير كافٍ لصرف الراتب. المتاح: ${availableFunds.toLocaleString()} ج.م، والمطلوب صرفه: ${netSalary.toLocaleString()} ج.م`
+            "رصيد الخزينة غير كافٍ لصرف الراتب. راجع المالك."
           );
         }
 
@@ -1931,6 +1610,7 @@ export class AccountingService {
     const whereOps: Prisma.DailyOperationWhereInput = {};
     const whereExp: Prisma.ExpenseWhereInput = {};
     const whereInst: Prisma.InstallmentWhereInput = { category: 'VEHICLE' };
+    let installmentPeriod: {gte: Date; lte: Date} | undefined;
 
     if (query.year) {
       whereOps.year = Number(query.year);
@@ -1961,15 +1641,21 @@ export class AccountingService {
       const start = new Date(Date.UTC(year, month - 1, 1));
       const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
       whereMaintenance.serviceDate = { gte: start, lte: end };
-      whereInst.bankDueDate = { gte: start, lte: end };
+      installmentPeriod = { gte: start, lte: end };
     } else if (query.year) {
       const year = Number(query.year);
       const start = new Date(Date.UTC(year, 0, 1));
       const end = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
       whereMaintenance.serviceDate = { gte: start, lte: end };
-      whereInst.bankDueDate = { gte: start, lte: end };
+      installmentPeriod = { gte: start, lte: end };
     }
 
+    if (installmentPeriod) whereInst.OR = [
+      {bankDueDate: installmentPeriod}, {driverDueDate: installmentPeriod},
+      {payments: {some: {date: installmentPeriod}}},
+    ];
+    const inInstallmentPeriod = (date: any) => !installmentPeriod || (new Date(date) >= installmentPeriod.gte && new Date(date) <= installmentPeriod.lte);
+    const periodPayments = (rows: any[], kind: string) => rows.flatMap(i => i.payments || []).filter(p => p.kind === kind && inInstallmentPeriod(p.date)).reduce((sum, p) => sum + Number(p.amount), 0);
     const [vehicles, ops, expenses, installments, maintenanceRecords] = await Promise.all([
       prisma.vehicle.findMany({
         where: whereVehicles,
@@ -2002,11 +1688,13 @@ export class AccountingService {
           vehicleNumber: true,
           amount: true,
           category: true,
+          expenseType: true,
           notes: true,
         },
       }),
       prisma.installment.findMany({
         where: whereInst,
+        include: { payments: true },
         orderBy: [{ bankDueDate: 'asc' }, { installmentNumber: 'asc' }],
       }),
       prisma.maintenanceRecord.findMany({
@@ -2020,27 +1708,29 @@ export class AccountingService {
     let totalAllVehicleDirectCost = 0;
     let totalAllMaintenanceCosts = 0;
     let totalAllOtherExpenses = 0;
+    let totalAllFuelCosts = 0;
     let totalAllInstallments = 0;
 
     const result = vehicles.map((v) => {
       const plate = v.plateNumber;
       const vOps = ops.filter((o) => o.vehiclePlate === plate);
       const vExpenses = expenses.filter((e) => e.vehicleNumber === plate);
-      const vInstallments = installments.filter((i) => i.vehiclePlate === plate);
+      const vInstallments = installments.filter((i) => i.vehiclePlate === plate).map(installmentView);
       const vMaintenance = maintenanceRecords.filter((m) => m.vehicleId === v.id || m.vehicle?.plateNumber === plate);
 
       const totalTrips = vOps.reduce((sum, o) => sum + Number(o.tripCount || 0), 0);
       const grossRevenue = vOps.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
       const vehicleDirectCost = vOps.reduce((sum, o) => sum + Number(o.vehicleCost || 0) * Number(o.tripCount || 0), 0);
-      const maintenanceCosts = vMaintenance.reduce((sum, m) => sum + Number(m.cost || 0), 0);
-      const otherExpenses = vExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+      const fuelCosts = vExpenses.filter(e => e.expenseType === 'FUEL').reduce((sum,e) => sum + Number(e.amount), 0);
+      const maintenanceCosts = vMaintenance.reduce((sum, m) => sum + Number(m.cost || 0), 0) + vExpenses.filter(e => e.expenseType === 'MAINTENANCE').reduce((sum,e) => sum + Number(e.amount), 0);
+      const otherExpenses = vExpenses.filter(e => e.expenseType === 'OTHER').reduce((sum,e) => sum + Number(e.amount), 0);
       const totalInstallments = vInstallments.reduce((sum, i) => sum + Number(i.bankAmount || 0), 0);
-      const totalInstallmentsPaid = vInstallments.filter((i) => i.status === 'PAID').reduce((sum, i) => sum + Number(i.bankAmount || 0), 0);
-      const totalInstallmentsPending = vInstallments.filter((i) => i.status !== 'PAID').reduce((sum, i) => sum + Number(i.bankAmount || 0), 0);
+      const totalInstallmentsPaid = periodPayments(vInstallments, 'BANK') + vInstallments.filter(i => !i.payments.some((p: any) => p.kind === 'BANK') && i.status === 'PAID' && inInstallmentPeriod(i.bankDueDate)).reduce((sum, i) => sum + Number(i.bankAmount), 0);
+      const totalInstallmentsPending = vInstallments.reduce((sum, i) => sum + i.bankRemaining, 0);
 
-      const totalCosts = vehicleDirectCost + maintenanceCosts + otherExpenses + totalInstallmentsPaid;
+      const totalCosts = vehicleDirectCost + maintenanceCosts + fuelCosts + otherExpenses + totalInstallmentsPaid;
       const netROI = grossRevenue - totalCosts;
-      const netCashFlow = vehicleDirectCost - (maintenanceCosts + otherExpenses + totalInstallmentsPaid);
+      const netCashFlow = vehicleDirectCost - (maintenanceCosts + fuelCosts + otherExpenses + totalInstallmentsPaid);
       const marginPercent = grossRevenue > 0 ? Math.round((netROI / grossRevenue) * 1000) / 10 : 0;
 
       totalAllTrips += totalTrips;
@@ -2048,6 +1738,7 @@ export class AccountingService {
       totalAllVehicleDirectCost += vehicleDirectCost;
       totalAllMaintenanceCosts += maintenanceCosts;
       totalAllOtherExpenses += otherExpenses;
+      totalAllFuelCosts += fuelCosts;
       totalAllInstallments += totalInstallmentsPaid;
 
       const modelName = `${v.make || ''} ${v.model || ''}`.trim() || v.vehicleType || 'مركبة أسطول';
@@ -2070,11 +1761,16 @@ export class AccountingService {
         vehicleDirectCost: Math.round(vehicleDirectCost * 100) / 100,
         totalVehicleCostAllocated: Math.round(vehicleDirectCost * 100) / 100,
         maintenanceCosts: Math.round(maintenanceCosts * 100) / 100,
+        fuelCosts: Math.round(fuelCosts * 100) / 100,
         otherExpenses: Math.round(otherExpenses * 100) / 100,
-        totalExpenses: Math.round((maintenanceCosts + otherExpenses) * 100) / 100,
+        totalExpenses: Math.round((maintenanceCosts + fuelCosts + otherExpenses) * 100) / 100,
         totalInstallments: Math.round(totalInstallments * 100) / 100,
         totalInstallmentsPaid: Math.round(totalInstallmentsPaid * 100) / 100,
         totalInstallmentsPending: Math.round(totalInstallmentsPending * 100) / 100,
+        driverInstallmentDue: vInstallments.reduce((sum, i) => sum + Number(i.driverAmount), 0),
+        driverInstallmentCash: periodPayments(vInstallments, 'DRIVER_CASH'),
+        driverInstallmentOffset: periodPayments(vInstallments, 'DRIVER_OFFSET'),
+        driverInstallmentRemaining: vInstallments.reduce((sum, i) => sum + i.driverRemaining, 0),
         totalCosts: Math.round(totalCosts * 100) / 100,
         netROI: Math.round(netROI * 100) / 100,
         netCashFlow: Math.round(netCashFlow * 100) / 100,
@@ -2095,9 +1791,10 @@ export class AccountingService {
       totalVehicleCostAllocated: Math.round(totalAllVehicleDirectCost * 100) / 100,
       totalMaintenance: Math.round(totalAllMaintenanceCosts * 100) / 100,
       totalOtherExpenses: Math.round(totalAllOtherExpenses * 100) / 100,
-      totalExpenses: Math.round((totalAllMaintenanceCosts + totalAllOtherExpenses) * 100) / 100,
+      totalFuel: Math.round(totalAllFuelCosts * 100) / 100,
+      totalExpenses: Math.round((totalAllMaintenanceCosts + totalAllFuelCosts + totalAllOtherExpenses) * 100) / 100,
       totalInstallments: Math.round(totalAllInstallments * 100) / 100,
-      totalNetROI: Math.round((totalAllGrossRevenue - (totalAllVehicleDirectCost + totalAllMaintenanceCosts + totalAllOtherExpenses + totalAllInstallments)) * 100) / 100,
+      totalNetROI: Math.round((totalAllGrossRevenue - (totalAllVehicleDirectCost + totalAllMaintenanceCosts + totalAllFuelCosts + totalAllOtherExpenses + totalAllInstallments)) * 100) / 100,
       vehicleCount: vehicles.length,
     };
 
@@ -2126,7 +1823,7 @@ export class AccountingService {
     }
 
     const whereMaintenance: Prisma.MaintenanceRecordWhereInput = {};
-    const whereInstallments: Prisma.InstallmentWhereInput = { status: 'PAID' };
+    const whereInstallments: Prisma.InstallmentWhereInput = { status: 'PAID', payments: { none: { kind: 'BANK' } } };
 
     if (query.month && query.year) {
       const year = Number(query.year);
@@ -2163,13 +1860,19 @@ export class AccountingService {
 
     const totalStaffSalaries = payrolls.reduce((sum, p) => sum + Number(p.netSalary || 0), 0);
     const totalMaintenance = Number(maintenanceSummary._sum.cost || 0);
-    const totalInstallmentsPaid = installments.reduce((sum, i) => sum + Number(i.bankAmount || 0), 0);
+    const installmentPayments = await prisma.installmentPayment.findMany({ where: { date: wherePayroll.date as Prisma.DateTimeFilter<"InstallmentPayment"> } });
+    const totalInstallmentsPaid = installments.reduce((sum, i) => sum + Number(i.bankAmount || 0), 0)
+      + installmentPayments.filter(p => p.kind === 'BANK').reduce((sum, p) => sum + Number(p.amount), 0);
+    const driverInstallmentReceipts = installmentPayments.filter(p => p.kind === 'DRIVER_CASH').reduce((sum, p) => sum + Number(p.amount), 0);
+    const driverInstallmentOffsets = installmentPayments.filter(p => p.kind === 'DRIVER_OFFSET').reduce((sum, p) => sum + Number(p.amount), 0);
 
     const grossRevenue = opsSummary.totalBilling + opsSummary.totalWithholdingTax;
     const withholdingTaxDeducted = opsSummary.totalWithholdingTax;
     const netRevenueFromOps = opsSummary.totalBilling;
 
-    const directOperationsCosts = opsSummary.totalNetDriverPay + opsSummary.totalVehicleCosts;
+    const extraDeductions = await prisma.driverAccountingEntry.aggregate({where:{kind:'DEDUCTION',...(query.year?{year:Number(query.year)}:{}),...(query.month?{month:Number(query.month)}:{})},_sum:{amount:true}});
+    const driverCosts = opsSummary.totalNetDriverPay - Number(extraDeductions._sum.amount || 0);
+    const directOperationsCosts = driverCosts + opsSummary.totalVehicleCosts;
     const grossProfit = netRevenueFromOps - directOperationsCosts;
 
     const totalIndirectExpenses =
@@ -2180,7 +1883,7 @@ export class AccountingService {
     const roundedGrossRevenue = Math.round(grossRevenue * 100) / 100;
     const roundedWHTax = Math.round(withholdingTaxDeducted * 100) / 100;
     const roundedNetBilling = Math.round(netRevenueFromOps * 100) / 100;
-    const roundedDriverPay = Math.round(opsSummary.totalNetDriverPay * 100) / 100;
+    const roundedDriverPay = Math.round(driverCosts * 100) / 100;
     const roundedVehicleCosts = Math.round(opsSummary.totalVehicleCosts * 100) / 100;
     const roundedDirectCosts = Math.round(directOperationsCosts * 100) / 100;
     const roundedGrossProfit = Math.round(grossProfit * 100) / 100;
@@ -2240,6 +1943,8 @@ export class AccountingService {
         fleetMaintenance: roundedMaintenance,
         vehicleInstallments: roundedInstallments,
       },
+      installmentCashFlow: { bankPaid: roundedInstallments, driverCollected: driverInstallmentReceipts, driverOffsets: driverInstallmentOffsets,
+        netCash: Math.round((driverInstallmentReceipts - totalInstallmentsPaid) * 100) / 100 },
       netProfit: roundedNetProfit,
     };
   }
@@ -2310,6 +2015,12 @@ export class AccountingService {
         monthlyMap[m].generalExpenses += Number(exp.amount || 0);
         monthlyMap[m].totalExpenses += Number(exp.amount || 0);
       }
+    }
+
+    const deductions = await prisma.driverAccountingEntry.groupBy({by:['month'],where:{year:currentYear,kind:'DEDUCTION'},_sum:{amount:true}});
+    for (const deduction of deductions) {
+      monthlyMap[deduction.month].driverCosts -= Number(deduction._sum.amount || 0);
+      monthlyMap[deduction.month].totalDriverPayouts -= Number(deduction._sum.amount || 0);
     }
 
     const result = Object.values(monthlyMap).map((item: any) => {
@@ -2482,14 +2193,19 @@ export class AccountingService {
       'الشركة / الموقع': s.companyName,
       الفرع: s.branch,
       'عدد الرحلات': s.totalTrips,
-      'إجمالي اليوميات الأساسية': s.totalBasePay,
+      'أجر الدورات': s.totalBasePay,
+      'الدفعات المصروفة': s.totalPaid,
+      'أقساط مخصومة من المستحقات': s.totalInstallmentOffsets,
+      'أقساط مستحقة على السائق': s.driverInstallmentDue,
+      'المتبقي من أقساط السائق': s.driverInstallmentRemaining,
+      'أقساط محصلة نقدًا': s.driverInstallmentCash,
       'إجمالي السهرات والإضافي': s.totalOvertime,
       'إجمالي السلف': s.totalAdvances,
       'إجمالي الخصومات والجزاءات': s.totalDeductions,
       'صافي المستحق للدفع': s.netPayable,
       'إجمالي مطالبة العميل': s.companyBilling,
       'صافي ربح الشركة': s.companyProfit,
-      الحالة: s.status === 'PAID' ? 'تم الصرف' : 'معلق',
+      الحالة: s.status === 'PAID' ? 'تم الصرف' : s.status === 'PARTIAL' ? 'صرف جزئي' : 'معلق',
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);

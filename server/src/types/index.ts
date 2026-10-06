@@ -2,6 +2,10 @@ import { Request } from 'express';
 import { UserRole } from '@prisma/client';
 
 export interface UserPayload {
+  companyScopeEnabled?: boolean;
+  roleId?: string | null;
+  roleName?: string;
+  permissions?: string[];
   sessionVersion?: number;
   userId: string;
   email: string;
@@ -11,6 +15,7 @@ export interface UserPayload {
 
 export interface AuthenticatedRequest extends Request {
   user?: UserPayload;
+  permissionAuthorized?: boolean;
 }
 
 export class AppError extends Error {

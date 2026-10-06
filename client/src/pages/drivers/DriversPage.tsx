@@ -11,7 +11,7 @@ import { Users, Plus, Phone, Bus, AlertTriangle, ArrowRightLeft, Edit3, Trash2, 
 import { getComplianceStatus, formatLocalDate } from '../../utils/compliance';
 
 export const DriversPage: React.FC = () => {
-  const { canManage } = useAuth();
+  const { can, canManage } = useAuth();
   const { t, lang } = useLanguage();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -177,7 +177,7 @@ export const DriversPage: React.FC = () => {
               : 'Manage company drivers, license compliance, and 1:1 dedicated vehicle pairings'}
           </p>
         </div>
-        {canManage && (
+        {can('drivers.create') && (
           <button
             onClick={() => {
               setFormData({
@@ -327,7 +327,7 @@ export const DriversPage: React.FC = () => {
                         <td className="py-3.5 px-4 text-end">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
-                              onClick={() => openAssignModal(d)}
+                              disabled={!can('drivers.edit')} onClick={() => openAssignModal(d)}
                               title={t('pairVehicle')}
                               className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50/50 hover:bg-blue-50 px-2 py-1 rounded-md border border-blue-200 transition-colors"
                             >
@@ -335,14 +335,14 @@ export const DriversPage: React.FC = () => {
                               <span>{t('pairVehicle')}</span>
                             </button>
                             <button
-                              onClick={() => openEditModal(d)}
+                              disabled={!can('drivers.edit')} onClick={() => openEditModal(d)}
                               title={t('edit')}
                               className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             >
                               <Edit3 className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => setDeletingDriver(d)}
+                              disabled={!can('drivers.delete')} onClick={() => setDeletingDriver(d)}
                               title={t('delete')}
                               className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                             >

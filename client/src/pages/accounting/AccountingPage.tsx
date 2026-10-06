@@ -1,3 +1,7 @@
+import './accounting.css';
+import { useAuth } from '../../contexts/AuthContext';
+import { InstallmentPaymentModal } from './components/InstallmentModals';
+import { DriverEntryModal } from './components/DriverEntryModal';
 import React, { useState, useDeferredValue } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
@@ -14,7 +18,6 @@ import {
   AddInstallmentModal,
   CreateAccountModal,
   TransferModal,
-  DriverPayModal,
   StaffPayrollModal,
 } from './AccountingModals';
 import {
@@ -48,6 +51,7 @@ import { ReportsPnLTab } from './components/ReportsPnLTab';
 export type AccountingTabKey = 'overview' | 'operations' | 'expenses' | 'settlements' | 'suppliers' | 'reports';
 
 export const AccountingPage: React.FC = () => {
+  const {can}=useAuth();
   const { isRTL } = useLanguage();
   const isAr = isRTL;
   const queryClient = useQueryClient();
@@ -94,8 +98,10 @@ export const AccountingPage: React.FC = () => {
   const [showSupplierTxModal, setShowSupplierTxModal] = useState(false);
   const [showSupplierPayModal, setShowSupplierPayModal] = useState(false);
   const [showDriverPayModal, setShowDriverPayModal] = useState(false);
+  const [driverDeductName, setDriverDeductName] = useState<string | null>(null);
   const [showPayrollModal, setShowPayrollModal] = useState(false);
   const [showInstallmentModal, setShowInstallmentModal] = useState(false);
+  const [installmentPayment, setInstallmentPayment] = useState<{row: InstallmentItem; bank: boolean} | null>(null);
   const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedAccountIdForStatement, setSelectedAccountIdForStatement] = useState<string>('');
@@ -276,7 +282,7 @@ export const AccountingPage: React.FC = () => {
         year: selectedYear,
         companyName: selectedCompany || undefined,
       }),
-    enabled: activeTab === 'settlements' || showDriverPayModal || activeTab === 'overview',
+    enabled: activeTab === 'settlements' || showDriverPayModal || driverDeductName !== null || activeTab === 'overview',
   });
 
   const { data: expensesData, isLoading: expLoading } = useQuery({
@@ -324,6 +330,9 @@ export const AccountingPage: React.FC = () => {
     enabled: activeTab === 'suppliers' || activeTab === 'overview',
   });
 
+  const { data: installmentDues } = useQuery({
+    queryKey: ['acc-installment-dues'], queryFn: () => accountingApi.getInstallmentsSummary(), enabled: activeTab === 'overview',
+  });
   const { data: installmentsData, isLoading: instLoading } = useQuery({
     queryKey: ['acc-installments', selectedVehiclePlate, deferredVehicleSearch],
     queryFn: () =>
@@ -370,7 +379,7 @@ export const AccountingPage: React.FC = () => {
   const { data: accountStatementData, isLoading: statementLoading } = useQuery({
     queryKey: ['acc-statement', selectedAccountIdForStatement],
     queryFn: () => accountingApi.getTreasuryStatement(selectedAccountIdForStatement),
-    enabled: !!selectedAccountIdForStatement,
+    enabled: treasuryData?.balancesVisible === true && !!selectedAccountIdForStatement,
   });
 
   // Mutations
@@ -384,7 +393,17 @@ export const AccountingPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['acc-monthly-breakdown'] });
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || err.message || 'تعذر صرف مستحقات السائق');
+      // The dialog displays the error and retains the request key for safe retries.
+    },
+  });
+
+  const deductDriverMutation = useMutation({
+    mutationFn: accountingApi.deductDriverSettlement,
+    onSuccess: () => {
+      setDriverDeductName(null);
+      queryClient.invalidateQueries({ queryKey: ['acc-settlements'] });
+      queryClient.invalidateQueries({ queryKey: ['acc-pnl'] });
+      queryClient.invalidateQueries({ queryKey: ['acc-monthly-breakdown'] });
     },
   });
 
@@ -588,24 +607,17 @@ export const AccountingPage: React.FC = () => {
     },
   });
 
-  const toggleInstMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      accountingApi.toggleInstallmentStatus(id, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['acc-installments'] });
-      queryClient.invalidateQueries({ queryKey: ['acc-inst-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['acc-vehicle-economics'] });
-    },
+  const refreshInstallments = () => {
+    for (const key of ['acc-installment-dues', 'acc-installments', 'acc-inst-summary', 'acc-vehicle-economics', 'acc-settlements', 'acc-treasury-overview', 'acc-statement', 'acc-pnl', 'activity-log']) queryClient.invalidateQueries({ queryKey: [key] });
+  };
+  const installmentPaymentMutation = useMutation({
+    mutationFn: accountingApi.recordInstallmentPayment,
+    onSuccess: () => { setInstallmentPayment(null); refreshInstallments(); },
   });
-
+  const openInstallmentPayment = (row: InstallmentItem, bank: boolean) => { installmentPaymentMutation.reset(); setInstallmentPayment({row, bank}); };
   const createInstallmentMutation = useMutation({
     mutationFn: accountingApi.createInstallment,
-    onSuccess: () => {
-      setShowInstallmentModal(false);
-      queryClient.invalidateQueries({ queryKey: ['acc-installments'] });
-      queryClient.invalidateQueries({ queryKey: ['acc-inst-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['acc-vehicle-economics'] });
-    },
+    onSuccess: () => { setShowInstallmentModal(false); refreshInstallments(); },
   });
 
   const createAccountMutation = useMutation({
@@ -663,7 +675,8 @@ export const AccountingPage: React.FC = () => {
     : `Full Year ${selectedYear} Total`;
 
   return (
-    <div className="space-y-5">
+    <div className="accounting-page space-y-5">
+      {!can('accounting.manage') && <p className="rounded-xl bg-blue-50 p-3">{isAr?'الحسابات متاحة لك للعرض فقط.':'Accounting is read-only for your role.'}</p>}
       {/* 1. Global Header with Scope & Month Ribbon */}
       <AccountingHeader
         isAr={isAr}
@@ -685,6 +698,7 @@ export const AccountingPage: React.FC = () => {
         onQuickAddOp={() => setShowOpModal(true)}
       />
 
+      {activeTab !== 'settlements' && <button className="ops-button primary" onClick={()=>setActiveTab('settlements')}>{isAr?'دفعات وخصومات السائقين ←':'Driver payments and deductions →'}</button>}
       {/* 2. Structured Main Navigation Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200 text-xs font-bold">
         <button
@@ -735,7 +749,7 @@ export const AccountingPage: React.FC = () => {
           }`}
         >
           <Users className="h-4 w-4" />
-          <span>{isAr ? 'مستحقات السائقين (التسوية)' : 'Driver Settlements'}</span>
+          <span>{isAr ? 'السائقون: مستحقات وخصومات ودفعات' : 'Driver Settlements'}</span>
         </button>
 
         <button
@@ -764,6 +778,14 @@ export const AccountingPage: React.FC = () => {
       </div>
 
       {/* 3. Render Domain Component for Active Tab */}
+      {activeTab === 'overview' && installmentDues && <section className="rounded-2xl border bg-white p-4 space-y-3">
+        <h2 className="text-sm font-semibold">{isAr ? 'استحقاقات أقساط السيارات — جميع الفترات' : 'Vehicle installment dues — all periods'}</h2>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="bg-emerald-50 rounded-xl p-3"><p>{isAr ? 'مستحق لنا على السائقين' : 'Receivable from drivers'}</p><strong className="text-lg font-semibold font-mono">{Number(installmentDues.totalDriverPending).toLocaleString()} EGP</strong></div>
+          <div className="bg-rose-50 rounded-xl p-3"><p>{isAr ? 'مستحق علينا للبنوك' : 'Payable to banks'}</p><strong className="text-lg font-semibold font-mono">{Number(installmentDues.totalPending).toLocaleString()} EGP</strong></div>
+        </div>
+        <p className="text-xs text-slate-500">{isAr ? 'هذه أرصدة مستحقة وليست رصيد الخزينة. التحصيل النقدي يدخل الخزينة، والسداد للبنك يخرج منها، والخصم من أجر السائق لا يحرك الخزينة.' : 'Outstanding balances are separate from cash. Receipts credit treasury; bank payments debit it; wage offsets do not move cash.'}</p>
+      </section>}
       {activeTab === 'overview' && (
         <AccountingOverviewTab
           isAr={isAr}
@@ -924,7 +946,9 @@ export const AccountingPage: React.FC = () => {
           selectedCompany={selectedCompany}
           setSelectedCompany={setSelectedCompany}
           dbClients={dbClients}
+          onOpenDeductDriverModal={(name) => { deductDriverMutation.reset(); setDriverDeductName(name || ''); }}
           onOpenPayDriverModal={(driverName, netPayable) => {
+            payDriverMutation.reset();
             const defaultAcc = treasuryData?.accounts?.find((a: any) => a.kind === 'CASH') || treasuryData?.accounts?.[0];
             setDriverPayForm({
               driverName: driverName || '',
@@ -939,6 +963,7 @@ export const AccountingPage: React.FC = () => {
             });
             setShowDriverPayModal(true);
           }}
+          onCollectInstallment={(row) => openInstallmentPayment(row, false)}
           onDownloadSettlements={handleDownloadSettlements}
         />
       )}
@@ -991,8 +1016,8 @@ export const AccountingPage: React.FC = () => {
           installmentsData={installmentsData}
           instLoading={instLoading}
           instSummary={instSummary}
-          onOpenAddInstallment={() => setShowInstallmentModal(true)}
-          onToggleInstallmentStatus={(id, status) => toggleInstMutation.mutate({ id, status })}
+          onOpenAddInstallment={() => { createInstallmentMutation.reset(); setShowInstallmentModal(true); }}
+          onInstallmentPayment={openInstallmentPayment}
         />
       )}
 
@@ -1128,14 +1153,21 @@ export const AccountingPage: React.FC = () => {
       />
 
       {/* 9. ADD INSTALLMENT MODAL */}
-      <AddInstallmentModal
-        isOpen={showInstallmentModal}
+      {showInstallmentModal && <AddInstallmentModal
+        isOpen
         onClose={() => setShowInstallmentModal(false)}
         onSubmit={(data) => createInstallmentMutation.mutate(data)}
         isPending={createInstallmentMutation.isPending}
         isAr={isAr}
         dbVehicles={dbVehicles}
-      />
+        dbDrivers={dbDrivers}
+        error={(createInstallmentMutation.error as any)?.response?.data?.error?.message || createInstallmentMutation.error?.message}
+      />}
+      {installmentPayment && <InstallmentPaymentModal installment={installmentPayment.row} bank={installmentPayment.bank}
+        isAr={isAr} accounts={treasuryData?.accounts || []} pending={installmentPaymentMutation.isPending}
+        error={(installmentPaymentMutation.error as any)?.response?.data?.error?.message || installmentPaymentMutation.error?.message}
+        onSubmit={(data) => installmentPaymentMutation.mutate(data)} onClose={() => setInstallmentPayment(null)} />}
+
 
       {/* 10. CREATE TREASURY ACCOUNT MODAL */}
       <CreateAccountModal
@@ -1157,17 +1189,18 @@ export const AccountingPage: React.FC = () => {
       />
 
       {/* 12. DRIVER PAY MODAL */}
-      <DriverPayModal
-        isOpen={showDriverPayModal}
-        onClose={() => setShowDriverPayModal(false)}
-        onSubmit={(data) => payDriverMutation.mutate(data)}
-        isPending={payDriverMutation.isPending}
-        isAr={isAr}
-        settlementsData={settlementsData || []}
-        driversList={dbDrivers || []}
-        treasuryAccounts={treasuryData?.accounts || []}
-        initialData={driverPayForm}
-      />
+      {showDriverPayModal && selectedMonth && <DriverEntryModal
+        kind="PAYMENT" month={selectedMonth} year={selectedYear} initialName={driverPayForm.driverName}
+        onClose={() => setShowDriverPayModal(false)} onSubmit={(data) => payDriverMutation.mutate(data)}
+        pending={payDriverMutation.isPending} isAr={isAr} rows={settlementsData || []} accounts={treasuryData?.accounts || []}
+        error={(payDriverMutation.error as any)?.response?.data?.message || payDriverMutation.error?.message}
+      />}
+      {driverDeductName !== null && selectedMonth && <DriverEntryModal
+        kind="DEDUCTION" month={selectedMonth} year={selectedYear} initialName={driverDeductName}
+        onClose={() => setDriverDeductName(null)} onSubmit={(data) => deductDriverMutation.mutate(data)}
+        pending={deductDriverMutation.isPending} isAr={isAr} rows={settlementsData || []} accounts={[]}
+        error={(deductDriverMutation.error as any)?.response?.data?.message || deductDriverMutation.error?.message}
+      />}
 
       {/* 13. STAFF PAYROLL MODAL */}
       <StaffPayrollModal

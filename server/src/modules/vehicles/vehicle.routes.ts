@@ -25,7 +25,7 @@ router.post(
 
 router.put(
   '/:id',
-  requireRole([UserRole.ADMIN, UserRole.OPERATIONS_MANAGER]),
+  requireRole([UserRole.ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.VIEWER]),
   validate(updateVehicleSchema),
   VehicleController.update
 );

@@ -1,3 +1,4 @@
+import { canVisit } from './navigation';
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
@@ -35,6 +36,7 @@ export const AppLayout: React.FC = () => {
     return <Navigate to="/" replace />;
   if (user?.role === "DRIVER" && location.pathname === "/billing")
     return <Navigate to="/" replace />;
+  if (!canVisit(location.pathname, user)) return <Navigate to="/guide" replace />;
   return (
     <div className="ops-app-shell">
       <a href="#workspace" className="ops-skip-link">

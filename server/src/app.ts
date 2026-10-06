@@ -1,3 +1,9 @@
+import roleRoutes from './modules/roles/roles.routes.js';
+import { isInternal } from './modules/roles/permissions.js';
+import { recordActivity } from './middlewares/activity.middleware.js';
+import { companyScope } from './company-scope.js';
+import { enforceAccess } from './middlewares/access.middleware.js';
+import configurationRoutes from './modules/configuration/configuration.routes.js';
 import operationsRoutes from "./modules/operations/operations.routes.js";
 import { authenticate } from "./middlewares/auth.middleware.js";
 import { prisma } from "./prisma.js";
@@ -60,6 +66,22 @@ export const createApp = (): Express => {
       res.status(503).json({ status: "unavailable" });
     }
   });
+  app.use('/api', recordActivity);
+  app.use('/api', (req, res, next) => {
+    if (req.path.startsWith('/auth/')) return next();
+    authenticate(req, res, (error?: any) => error ? next(error) : enforceAccess(req, res, next));
+  });
+  app.use('/api', async (req, _res, next) => {
+    if (req.path.startsWith('/auth/')) return next();
+    try {
+      const user = await prisma.user.findUnique({ where: { id: (req as any).user.userId } });
+      if (!user?.companyScopeEnabled) return next();
+      const routes = await prisma.route.findMany({ where: { clientId: { in: user.companyIds } }, select: { id: true } });
+      companyScope.run({ companyIds: user.companyIds, routeIds: routes.map(route => route.id) }, next);
+    } catch (error) { next(error); }
+  });
+  app.use('/api/roles', roleRoutes);
+  app.use('/api/configuration', configurationRoutes);
   app.use("/api/operations", operationsRoutes);
   // External portal accounts may only use scoped operations endpoints and authentication.
   app.use("/api", (req, res, next) => {
@@ -68,24 +90,13 @@ export const createApp = (): Express => {
       if (error) return next(error);
       const role = (req as any).user?.role;
       if (
-        !["ADMIN", "OPERATIONS_MANAGER", "ACCOUNTANT", "VIEWER"].includes(role)
+        !isInternal((req as any).user)
       )
         return res
           .status(403)
           .json({
             success: false,
             error: { message: "Use your assigned portal." },
-          });
-      if (
-        !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
-        req.path.startsWith("/accounting") &&
-        !["ADMIN", "ACCOUNTANT"].includes(role)
-      )
-        return res
-          .status(403)
-          .json({
-            success: false,
-            error: { message: "Accounting changes require accountant access." },
           });
       if (req.path.startsWith("/accounting/import-workspace-files"))
         return res

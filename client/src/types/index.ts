@@ -2,6 +2,12 @@ export type UserRole = 'ADMIN' | 'OPERATIONS_MANAGER' | 'VIEWER' | 'ACCOUNTANT' 
 export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
 
 export interface User {
+  roleId?: string | null;
+  roleName?: string;
+  assignedRole?: {id:string;name:string;code?:string};
+  permissions?: string[];
+  companyIds?: string[];
+  companyScopeEnabled?: boolean;
   id: string;
   email: string;
   fullName: string;
@@ -53,7 +59,7 @@ export interface Contract {
 }
 
 export type VehicleStatus = 'AVAILABLE' | 'ASSIGNED' | 'ON_TRIP' | 'UNDER_MAINTENANCE' | 'OUT_OF_SERVICE';
-export type VehicleType = 'BUS_50_SEATER' | 'MINIBUS_30_SEATER' | 'VAN_14_SEATER' | 'SEDAN' | 'OTHER';
+export type VehicleType = string;
 
 export interface Partner {
   id: string;
@@ -152,6 +158,7 @@ export interface RouteStop {
 }
 
 export interface Route {
+  rates?: RouteRate[];
   id: string;
   clientId: string;
   client?: { id: string; companyName: string };
@@ -184,6 +191,10 @@ export type ShiftType = 'MORNING' | 'AFTERNOON' | 'NIGHT' | 'CUSTOM';
 export type TripStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'DELAYED';
 
 export interface Trip {
+  billingTypeId?: string;
+  billingTypeName?: string;
+  direction?: string;
+  returnDeparture?: string;
   id: string;
   tripNumber: string;
   clientId: string;
@@ -316,3 +327,6 @@ export interface ApiResponse<T> {
     limit?: number;
   };
 }
+export interface BillingType {id:string;name:string;direction:'OUTBOUND'|'RETURN'|'BOTH';active:boolean}
+export interface VehicleCategory {code:string;name:string;active:boolean}
+export interface RouteRate {id?:string;billingTypeId:string;billingType?:BillingType;departureTime:string;returnDepartureTime?:string|null;saleAmount:number;costAmount:number;driverAllowance:number;vehicleCost:number}

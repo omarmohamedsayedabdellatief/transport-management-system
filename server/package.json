@@ -18,7 +18,11 @@
     "db:deploy": "prisma migrate deploy",
     "admin:create": "tsx prisma/create_admin.ts",
     "demo:seed": "DEMO_MODE=true tsx prisma/seed_operations.ts",
-    "demo:showcase": "DEMO_MODE=true tsx prisma/seed_showcase.ts"
+    "demo:showcase": "DEMO_MODE=true tsx prisma/seed_showcase.ts",
+    "test:roles": "npm run build && node --import tsx --test tests/roles-pricing.integration.ts",
+    "demo:types": "tsx prisma/seed_trip_types.ts",
+    "demo:drivers": "DEMO_MODE=true tsx prisma/seed_driver_accounting.ts",
+    "test:excel": "npm run build && node --import tsx --test tests/trip-excel.test.ts tests/trip-excel.integration.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",

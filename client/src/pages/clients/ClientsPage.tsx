@@ -10,7 +10,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { Building2, Plus, Search, Mail, Phone, MapPin, FileText, Edit3, Trash2, AlertTriangle } from 'lucide-react';
 
 export const ClientsPage: React.FC = () => {
-  const { canManage } = useAuth();
+  const { can, canManage } = useAuth();
   const { t, lang } = useLanguage();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -107,7 +107,7 @@ export const ClientsPage: React.FC = () => {
               : 'Manage corporate contracts, factory sites, and employee transit partners'}
           </p>
         </div>
-        {canManage && (
+        {can('clients.create') && (
           <button
             onClick={openCreateModal}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
@@ -178,14 +178,14 @@ export const ClientsPage: React.FC = () => {
                 {canManage && (
                   <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => openEditModal(c)}
+                      disabled={!can('clients.edit')} onClick={() => openEditModal(c)}
                       title={t('edit')}
                       className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     >
                       <Edit3 className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => setDeletingClient(c)}
+                      disabled={!can('clients.delete')} onClick={() => setDeletingClient(c)}
                       title={t('delete')}
                       className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                     >

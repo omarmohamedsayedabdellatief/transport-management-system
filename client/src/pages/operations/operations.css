@@ -25,8 +25,8 @@ body {
   gap: 20px;
 }
 .ops-heading h1 {
-  font-size: 25px;
-  font-weight: 650;
+  font-size: 22px;
+  font-weight: 600;
   letter-spacing: -0.6px;
   line-height: 1.8;
 }
@@ -883,7 +883,7 @@ body {
 }
 @media (min-width: 1500px) {
   .ops-heading h1 {
-    font-size: 28px;
+    font-size: 24px;
   }
 }
 @media (max-width: 1100px) {
@@ -1908,3 +1908,32 @@ body {
   .ops-print-all tr { break-inside: avoid; }
   dialog[open] .ops-panel { overflow: visible; }
 }
+
+/* Labeled controls shared by trip pricing and configurable-type forms. */
+.ops-form-grid > label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ops-form-grid > label > input:not([type="checkbox"]),
+.ops-form-grid > label > select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--ops-border, #dce2e8);
+  border-radius: 8px;
+  background: white;
+  color: var(--ops-ink, #172d33);
+  font: inherit;
+}
+.ops-form-grid > label > input:focus,
+.ops-form-grid > label > select:focus {
+  outline: 2px solid var(--ops-blue, #27665e);
+  outline-offset: 2px;
+}
+.ops-form-grid > label > input[type="checkbox"] { align-self: flex-start; }

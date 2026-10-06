@@ -1,3 +1,4 @@
+import { AccountingActionButton } from './AccountingActionButton';
 import React, { useState } from 'react';
 import {
   CalendarDays,
@@ -211,18 +212,18 @@ export const OperationsRevenueTab: React.FC<OperationsRevenueTabProps> = ({
               )}
             </div>
 
-            <button
+            <AccountingActionButton
               onClick={onOpenAddOp}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
             >
               <Plus className="h-4 w-4" />
               <span>{isAr ? 'إضافة حركة تشغيل جديدة' : 'Add Daily Operation'}</span>
-            </button>
+            </AccountingActionButton>
           </div>
 
           {/* Summary KPI Strip */}
           {opsSummary && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 text-xs shadow-2xs">
+            <div className="accounting-metrics grid gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 text-xs shadow-2xs">
               <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                 <span className="text-[11px] text-slate-500 block font-medium">حركات التشغيل للشهر:</span>
                 <span className="text-sm font-black text-slate-900 font-mono">
@@ -335,7 +336,7 @@ export const OperationsRevenueTab: React.FC<OperationsRevenueTabProps> = ({
                           {Number(op.netRevenue).toLocaleString()}
                         </td>
                         <td className="py-2.5 px-3 text-center">
-                          <button
+                          <AccountingActionButton
                             onClick={() => {
                               if (window.confirm(isAr ? 'حذف هذه الحركة؟' : 'Delete operation?')) {
                                 onDeleteOp(op.id);
@@ -345,7 +346,7 @@ export const OperationsRevenueTab: React.FC<OperationsRevenueTabProps> = ({
                             title={isAr ? 'حذف' : 'Delete'}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </AccountingActionButton>
                         </td>
                       </tr>
                     ))
@@ -421,13 +422,13 @@ export const OperationsRevenueTab: React.FC<OperationsRevenueTabProps> = ({
               </div>
             </div>
 
-            <button
+            <AccountingActionButton
               onClick={onOpenAddOvertime}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
             >
               <Plus className="h-4 w-4" />
               <span>{isAr ? 'إضافة سهرة أو إضافي جديد' : 'Add Overtime / Shift'}</span>
-            </button>
+            </AccountingActionButton>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
@@ -483,7 +484,7 @@ export const OperationsRevenueTab: React.FC<OperationsRevenueTabProps> = ({
                         </td>
                         <td className="py-2.5 px-4 text-slate-500 max-w-xs truncate">{ot.notes || '-'}</td>
                         <td className="py-2.5 px-4 text-center">
-                          <button
+                          <AccountingActionButton
                             onClick={() => {
                               if (window.confirm(isAr ? 'حذف هذا السجل؟' : 'Delete overtime record?')) {
                                 onDeleteOvertime(ot.id);
@@ -492,7 +493,7 @@ export const OperationsRevenueTab: React.FC<OperationsRevenueTabProps> = ({
                             className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition-colors"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </AccountingActionButton>
                         </td>
                       </tr>
                     ))
@@ -510,7 +511,7 @@ export const OperationsRevenueTab: React.FC<OperationsRevenueTabProps> = ({
       {subTab === 'client_ledgers' && (
         <div className="space-y-4">
           {/* Client Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="accounting-metrics grid gap-3">
             {clientsSummary && clientsSummary.length > 0 ? (
               clientsSummary.map((c: any) => {
                 const balanceVal = Number(c.balance ?? c.currentBalance ?? 0);
@@ -569,13 +570,13 @@ export const OperationsRevenueTab: React.FC<OperationsRevenueTabProps> = ({
                     {/* Card Actions */}
                     <div className="grid grid-cols-2 gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
                       {balanceVal > 0 ? (
-                        <button
+                        <AccountingActionButton
                           onClick={() => onOpenClientReceipt(c.companyName, balanceVal)}
                           className="py-1.5 px-2 rounded-xl text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1 shadow-2xs transition-colors"
                         >
                           <Wallet className="h-3 w-3" />
                           <span>تحصيل وسداد</span>
-                        </button>
+                        </AccountingActionButton>
                       ) : (
                         <div className="py-1.5 px-2 rounded-xl text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center gap-1 select-none">
                           <CheckCircle2 className="h-3 w-3 text-emerald-600" />
@@ -583,13 +584,13 @@ export const OperationsRevenueTab: React.FC<OperationsRevenueTabProps> = ({
                         </div>
                       )}
 
-                      <button
+                      <AccountingActionButton
                         onClick={() => onOpenClientInvoice(c.companyName)}
                         className="py-1.5 px-2 rounded-xl text-[11px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 flex items-center justify-center gap-1 transition-colors"
                       >
                         <FileText className="h-3 w-3" />
                         <span>فاتورة الشهر</span>
-                      </button>
+                      </AccountingActionButton>
                     </div>
                   </div>
                 );
@@ -642,29 +643,29 @@ export const OperationsRevenueTab: React.FC<OperationsRevenueTabProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <button
+              <AccountingActionButton
                 onClick={() => onOpenClientReceipt(selectedCompany)}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
               >
                 <Wallet className="h-4 w-4" />
                 <span>{isAr ? 'تحصيل وسداد في الخزينة/البنك' : 'Record Client Receipt'}</span>
-              </button>
+              </AccountingActionButton>
 
-              <button
+              <AccountingActionButton
                 onClick={() => onOpenClientInvoice(selectedCompany)}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
               >
                 <FileText className="h-4 w-4" />
                 <span>{isAr ? 'إصدار ومعاينة فاتورة رحلات' : 'Generate Trip Invoice'}</span>
-              </button>
+              </AccountingActionButton>
 
-              <button
+              <AccountingActionButton
                 onClick={() => onOpenManualDebit(selectedCompany)}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
               >
                 <Plus className="h-4 w-4" />
                 <span>{isAr ? 'إضافة مطالبة يدوية' : 'Add Manual Invoice'}</span>
-              </button>
+              </AccountingActionButton>
             </div>
           </div>
 

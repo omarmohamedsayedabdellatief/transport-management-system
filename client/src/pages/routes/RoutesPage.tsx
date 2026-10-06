@@ -1,3 +1,4 @@
+import { RouteRatesEditor } from '../../components/configuration/RouteRatesEditor';
 import { MutationNotice, QueryNotice } from "../../components/ui/MutationNotice";
 import React, { useState, useMemo, useDeferredValue } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,7 +24,7 @@ import {
 } from 'lucide-react';
 
 export const RoutesPage: React.FC = () => {
-  const { canManage } = useAuth();
+  const { can, canManage, canFinance } = useAuth();
   const { t, lang } = useLanguage();
   const isAr = lang === 'ar';
   const queryClient = useQueryClient();
@@ -33,6 +34,7 @@ export const RoutesPage: React.FC = () => {
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
   const [deletingRoute, setDeletingRoute] = useState<Route | null>(null);
 
+  const [ratesRoute,setRatesRoute] = useState<Route|null>(null);
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterClient, setFilterClient] = useState('');
@@ -113,10 +115,12 @@ export const RoutesPage: React.FC = () => {
   const drivers = driversData?.data || [];
   const suppliers = suppliersData?.data || [];
 
+  const pricePayload = (value: any) => can('pricing.manage') ? value : Object.fromEntries(Object.entries(value).filter(([key]) => !['clientPricePerTrip','supplierCostPerTrip','driverTripAllowance','vehicleRentalCost'].includes(key)));
+
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
       const driver = drivers.find((d) => d.id === payload.defaultDriverId);
-      return api.post('/routes', {
+      return api.post('/routes', pricePayload({
         ...payload,
         estimatedDistanceKm: Number(payload.estimatedDistanceKm),
         estimatedDurationMin: Number(payload.estimatedDurationMin),
@@ -127,7 +131,7 @@ export const RoutesPage: React.FC = () => {
         vehicleRentalCost: payload.executionType === 'COMPANY' ? Number(payload.vehicleRentalCost || 0) : 0,
         defaultDriverId: payload.defaultDriverId || null,
         defaultVehicleId: driver?.assignedVehicleId || null,
-      });
+      }));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routes'] });
@@ -138,7 +142,7 @@ export const RoutesPage: React.FC = () => {
   const updateMutation = useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
       const driver = drivers.find((d) => d.id === payload.defaultDriverId);
-      return api.put(`/routes/${id}`, {
+      return api.put(`/routes/${id}`, pricePayload({
         ...payload,
         estimatedDistanceKm: Number(payload.estimatedDistanceKm),
         estimatedDurationMin: Number(payload.estimatedDurationMin),
@@ -149,7 +153,7 @@ export const RoutesPage: React.FC = () => {
         vehicleRentalCost: payload.executionType === 'COMPANY' ? Number(payload.vehicleRentalCost || 0) : 0,
         defaultDriverId: payload.defaultDriverId || null,
         defaultVehicleId: driver?.assignedVehicleId || null,
-      });
+      }));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routes'] });
@@ -261,6 +265,7 @@ export const RoutesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {ratesRoute && <RouteRatesEditor route={ratesRoute} onClose={()=>setRatesRoute(null)}/>}
       <QueryNotice failed={isError} retry={refetch} />
       <MutationNotice mutations={[createMutation, updateMutation, deleteMutation]} />
 
@@ -274,7 +279,7 @@ export const RoutesPage: React.FC = () => {
               : 'Manage company routes, operational ownership (Supplier vs Company Fleet), and per-route rates'}
           </p>
         </div>
-        {canManage && (
+        {can('routes.create') && (
           <button
             onClick={() => {
               setFormData({
@@ -396,11 +401,6 @@ export const RoutesPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredRoutes.map((r) => {
             const isSupplier = r.executionType === 'SUPPLIER' || !!r.supplierId;
-            const clientRate = Number(r.clientPricePerTrip || 0);
-            const supplierRate = Number(r.supplierCostPerTrip || 0);
-            const driverWage = Number(r.driverTripAllowance || 0);
-            const vehicleCost = Number(r.vehicleRentalCost || 0);
-            const estimatedMargin = isSupplier ? clientRate - supplierRate : clientRate - (driverWage + vehicleCost);
 
             return (
               <div
@@ -429,14 +429,14 @@ export const RoutesPage: React.FC = () => {
                       {canManage && (
                         <div className="flex items-center gap-0.5 ltr:ml-1.5 rtl:mr-1.5 shrink-0">
                           <button
-                            onClick={() => openEditModal(r)}
+                            disabled={!can('routes.edit')} onClick={() => openEditModal(r)}
                             className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                             title={t('editRoute')}
                           >
                             <Edit3 className="h-3.5 w-3.5" />
                           </button>
                           <button
-                            onClick={() => setDeletingRoute(r)}
+                            disabled={!can('routes.delete')} onClick={() => setDeletingRoute(r)}
                             className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
                             title={t('deleteRoute')}
                           >
@@ -477,42 +477,9 @@ export const RoutesPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Financial & Settlement Definition Card */}
-                  <div className="mt-2.5 rounded-lg border border-slate-200/90 bg-slate-50/70 p-2.5 text-xs space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-600 font-medium">{isAr ? 'سعر بيع الرحلة للعميل:' : 'Client Price / Trip:'}</span>
-                      <span className="font-mono font-bold text-blue-700">{clientRate.toLocaleString()} EGP</span>
-                    </div>
-
-                    {isSupplier ? (
-                      <>
-                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-amber-900">
-                          <span className="font-medium">{isAr ? 'سعر الرحلة للمورد:' : 'Supplier Cost Rate:'}</span>
-                          <span className="font-mono font-bold text-amber-700">{supplierRate.toLocaleString()} EGP</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px] text-emerald-700 font-semibold">
-                          <span>{isAr ? 'هامش ربح الرحلة:' : 'Trip Margin:'}</span>
-                          <span className="font-mono">{estimatedMargin > 0 ? `+${estimatedMargin.toLocaleString()}` : estimatedMargin.toLocaleString()} EGP</span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-slate-700">
-                          <span>{isAr ? 'بدل/راتب السائق بالرحلة:' : 'Driver Trip Wage:'}</span>
-                          <span className="font-mono font-semibold text-slate-900">{driverWage.toLocaleString()} EGP</span>
-                        </div>
-                        {vehicleCost > 0 && (
-                          <div className="flex items-center justify-between text-[11px] text-slate-600">
-                            <span>{isAr ? 'تكلفة/إيجار الحافلة:' : 'Vehicle Cost:'}</span>
-                            <span className="font-mono">{vehicleCost.toLocaleString()} EGP</span>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between text-[11px] text-emerald-700 font-semibold">
-                          <span>{isAr ? 'صافي عائد الرحلة للشركة:' : 'Net Fleet Revenue:'}</span>
-                          <span className="font-mono">+{estimatedMargin.toLocaleString()} EGP</span>
-                        </div>
-                      </>
-                    )}
+                  {can('pricing.manage') && <button className="text-blue-700 font-bold py-2" onClick={()=>setRatesRoute(r)}>{isAr?"مواعيد وأسعار الرحلات":"Trip times & prices"}</button>}
+                  <div className="mt-2 space-y-2 text-xs">
+                    {(r.rates||[]).filter(rate=>rate.billingType?.active).map(rate=><div key={rate.billingTypeId} className="rounded-lg bg-slate-50 border p-2 flex justify-between gap-2"><span>{rate.billingType?.name} · {rate.departureTime}{rate.returnDepartureTime?` / ${rate.returnDepartureTime}`:''}</span>{canFinance&&<strong>{Number(rate.saleAmount).toLocaleString()} EGP</strong>}</div>)}
                   </div>
                 </div>
 
@@ -703,7 +670,7 @@ export const RoutesPage: React.FC = () => {
                 min={0}
                 step="any"
                 placeholder="1500"
-                value={formData.clientPricePerTrip || ''}
+                disabled={!can('pricing.manage')} value={formData.clientPricePerTrip || ''}
                 onChange={(e) => setFormData({ ...formData, clientPricePerTrip: Number(e.target.value) })}
                 className="w-full px-3 py-2 border border-blue-300 rounded-lg text-xs font-mono font-bold text-blue-950 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
               />
@@ -773,7 +740,7 @@ export const RoutesPage: React.FC = () => {
                       min={0}
                       step="any"
                       placeholder="1100"
-                      value={formData.supplierCostPerTrip || ''}
+                      disabled={!can('pricing.manage')} value={formData.supplierCostPerTrip || ''}
                       onChange={(e) => setFormData({ ...formData, supplierCostPerTrip: Number(e.target.value) })}
                       className="mt-1 block w-full px-3 py-2 border border-amber-300 rounded-lg text-xs font-mono font-bold text-amber-950 focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
                     />
@@ -816,7 +783,7 @@ export const RoutesPage: React.FC = () => {
                       min={0}
                       step="any"
                       placeholder="250"
-                      value={formData.driverTripAllowance || ''}
+                      disabled={!can('pricing.manage')} value={formData.driverTripAllowance || ''}
                       onChange={(e) => setFormData({ ...formData, driverTripAllowance: Number(e.target.value) })}
                       className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
@@ -834,7 +801,7 @@ export const RoutesPage: React.FC = () => {
                       min={0}
                       step="any"
                       placeholder="350"
-                      value={formData.vehicleRentalCost || ''}
+                      disabled={!can('pricing.manage')} value={formData.vehicleRentalCost || ''}
                       onChange={(e) => setFormData({ ...formData, vehicleRentalCost: Number(e.target.value) })}
                       className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
@@ -1061,7 +1028,7 @@ export const RoutesPage: React.FC = () => {
                 required
                 min={0}
                 step="any"
-                value={editFormData.clientPricePerTrip || ''}
+                disabled={!can('pricing.manage')} value={editFormData.clientPricePerTrip || ''}
                 onChange={(e) => setEditFormData({ ...editFormData, clientPricePerTrip: Number(e.target.value) })}
                 className="w-full px-3 py-2 border border-blue-300 rounded-lg text-xs font-mono font-bold text-blue-950 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
               />
@@ -1130,7 +1097,7 @@ export const RoutesPage: React.FC = () => {
                       required
                       min={0}
                       step="any"
-                      value={editFormData.supplierCostPerTrip || ''}
+                      disabled={!can('pricing.manage')} value={editFormData.supplierCostPerTrip || ''}
                       onChange={(e) => setEditFormData({ ...editFormData, supplierCostPerTrip: Number(e.target.value) })}
                       className="mt-1 block w-full px-3 py-2 border border-amber-300 rounded-lg text-xs font-mono font-bold text-amber-950 focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
                     />
@@ -1172,7 +1139,7 @@ export const RoutesPage: React.FC = () => {
                       type="number"
                       min={0}
                       step="any"
-                      value={editFormData.driverTripAllowance || ''}
+                      disabled={!can('pricing.manage')} value={editFormData.driverTripAllowance || ''}
                       onChange={(e) => setEditFormData({ ...editFormData, driverTripAllowance: Number(e.target.value) })}
                       className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
@@ -1189,7 +1156,7 @@ export const RoutesPage: React.FC = () => {
                       type="number"
                       min={0}
                       step="any"
-                      value={editFormData.vehicleRentalCost || ''}
+                      disabled={!can('pricing.manage')} value={editFormData.vehicleRentalCost || ''}
                       onChange={(e) => setEditFormData({ ...editFormData, vehicleRentalCost: Number(e.target.value) })}
                       className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />

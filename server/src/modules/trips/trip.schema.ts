@@ -3,6 +3,9 @@ import { ShiftType, TripStatus } from '@prisma/client';
 
 export const createTripSchema = z.object({
   body: z.object({
+    billingTypeId: z.string().uuid().optional(),
+    direction: z.enum(['OUTBOUND','RETURN']).optional(),
+    returnDeparture: z.string().nullable().optional(),
     clientId: z.string().uuid('Valid client ID is required'),
     contractId: z.string().uuid().nullable().optional(),
     routeId: z.string().uuid('Valid route ID is required'),
@@ -38,6 +41,8 @@ export const updateTripStatusSchema = z.object({
 export const batchGenerateTripsSchema = z.object({
   body: z.object({
     routeId: z.string().uuid(),
+    billingTypeId: z.string().uuid().optional(),
+    direction: z.enum(['OUTBOUND','RETURN']).optional(),
     startDate: z.string().or(z.date()),
     endDate: z.string().or(z.date()),
     shifts: z.array(z.nativeEnum(ShiftType)).min(1),
@@ -57,7 +62,10 @@ export const generateDailyFromTemplatesSchema = z.object({
     routeOverrides: z.array(
       z.object({
         routeId: z.string().uuid(),
+        billingTypeId: z.string().uuid().optional(),
+        direction: z.enum(['OUTBOUND','RETURN']).optional(),
         selected: z.boolean().optional(),
+        exclusionNote: z.string().trim().max(2000).optional(),
         driverId: z.string().uuid().optional(),
         vehicleId: z.string().uuid().optional(),
         shift: z.nativeEnum(ShiftType).optional(),

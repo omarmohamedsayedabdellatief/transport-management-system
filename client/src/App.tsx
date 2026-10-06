@@ -18,6 +18,7 @@ const ContractsPage = lazy(() => import("./pages/contracts/ContractsPage").then(
 const MaintenancePage = lazy(() => import("./pages/maintenance/MaintenancePage").then(m => ({ default: m.MaintenancePage })));
 const AccountingPage = lazy(() => import("./pages/accounting/AccountingPage").then(m => ({ default: m.AccountingPage })));
 const Insights = lazy(() => import("./pages/operations/Insights").then(m => ({ default: m.Insights })));
+const RolesPage = lazy(() => import("./pages/users/RolesPage").then(m => ({ default: m.RolesPage })));
 const UsersPage = lazy(() => import("./pages/users/UsersPage").then(m => ({ default: m.UsersPage })));
 const Guide = lazy(() => import("./pages/operations/Guide").then(m => ({ default: m.Guide })));
 const OperationsSettings = lazy(() => import("./pages/operations/Settings").then(m => ({ default: m.OperationsSettings })));
@@ -45,8 +46,8 @@ export const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
-        <AuthProvider>
-          <BrowserRouter>
+        <BrowserRouter>
+          <AuthProvider>
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -86,14 +87,15 @@ export const App: React.FC = () => {
                   <Route path="/settings" element={<OperationsSettings />} />
                   <Route path="/guide" element={<Guide />} />
                   <Route path="/audit" element={<AuditLog />} />
+                  <Route path="/roles" element={<RolesPage />} />
                   <Route path="/users" element={<UsersPage />} />
                 </Route>
 
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
-          </BrowserRouter>
-        </AuthProvider>
+          </AuthProvider>
+        </BrowserRouter>
       </LanguageProvider>
     </QueryClientProvider>
   );

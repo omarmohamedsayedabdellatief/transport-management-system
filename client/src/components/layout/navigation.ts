@@ -12,12 +12,48 @@ export const destinations = [
   ["/accounting", "Accounts & Treasury", "الحسابات والخزينة العامة"],
   ["/reports", "Reports & Analytics", "التقارير والتحليلات"],
   ["/settings", "Workspace Settings", "إعدادات التشغيل"],
+  ["/roles", "Roles & Permissions", "الأدوار والصلاحيات"],
   ["/users", "Users & Permissions", "المستخدمون والصلاحيات"],
   ["/audit", "Activity Log", "سجل النشاط والعمليات"],
   ["/guide", "Help & User Guide", "دليل الاستخدام والمساعدة"],
 ] as const;
-export const allowedDestinations = (role?: string) => destinations.filter(([path]) => {
-  if (["DRIVER", "CLIENT", "SUPPLIER"].includes(role || ""))
-    return ["/", "/trips", "/guide"].includes(path);
-  return role === "ADMIN" || !["/users", "/audit"].includes(path);
-});
+export const canVisit = (
+  path: string,
+  user?: {
+    role?: string;
+    permissions?: string[];
+    companyScopeEnabled?: boolean;
+  } | null,
+) => {
+  if (path === "/guide") return true;
+  if (["DRIVER", "CLIENT", "SUPPLIER"].includes(user?.role || ""))
+    return [
+      "/",
+      "/trips",
+      "/guide",
+      ...(user?.role === "DRIVER" ? [] : ["/billing"]),
+    ].includes(path);
+  if (
+    user?.companyScopeEnabled &&
+    ["/accounting", "/reports", "/users", "/roles", "/audit"].includes(path)
+  )
+    return false;
+  const resource =
+    (
+      {
+        "/": "dashboard",
+        "/settings": "configuration",
+        "/schedules": "plans",
+      } as Record<string, string>
+    )[path] || path.split("/")[1];
+  return !!user?.permissions?.includes(
+    resource + (resource === "roles" ? ".manage" : ".view"),
+  );
+};
+export const allowedDestinations = (
+  user?: {
+    role?: string;
+    permissions?: string[];
+    companyScopeEnabled?: boolean;
+  } | null,
+) => destinations.filter(([path]) => canVisit(path, user));

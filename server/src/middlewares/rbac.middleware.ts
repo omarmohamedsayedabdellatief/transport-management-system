@@ -8,7 +8,8 @@ export const requireRole = (allowedRoles: UserRole[]) => {
       throw new UnauthorizedError('Authentication required');
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    if (req.permissionAuthorized) return next();
+    if (!['ADMIN', 'ACCOUNTANT'].includes(req.user.role) && !allowedRoles.includes(req.user.role)) {
       throw new ForbiddenError(
         `Access denied. Role ${req.user.role} does not have sufficient permissions for this resource.`
       );

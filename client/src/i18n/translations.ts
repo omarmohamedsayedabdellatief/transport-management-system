@@ -12,9 +12,9 @@ export const translations = {
     signIn: 'Sign In to Workspace',
     authenticating: 'Authenticating...',
     quickFill: 'Quick Fill Demo Credentials',
-    admin: 'Admin',
+    admin: 'Owner',
     operations: 'Operations',
-    auditor: 'Auditor',
+    auditor: 'Regular user',
 
     // Navigation
     navOperations: 'Operations',
@@ -189,7 +189,7 @@ export const translations = {
 
     // Users
     systemUserManagement: 'System User Management',
-    userManagementSubtitle: 'Role-Based Access Control (Admin, Operations Manager, Auditor/Viewer)',
+    userManagementSubtitle: 'Assign roles, permissions, and company access for each user',
     addUser: 'Add System User',
     user: 'User',
     assignedRole: 'Assigned Role',
@@ -221,9 +221,9 @@ export const translations = {
     signIn: 'تسجيل الدخول للنظام',
     authenticating: 'جاري التحقق...',
     quickFill: 'ملء سريع للحسابات التجريبية',
-    admin: 'مدير النظام',
+    admin: 'المالك',
     operations: 'العمليات',
-    auditor: 'مدقق',
+    auditor: 'مستخدم عادي',
 
     // Navigation
     navOperations: 'العمليات التشغيلية',
@@ -398,7 +398,7 @@ export const translations = {
 
     // Users
     systemUserManagement: 'إدارة مستخدمي النظام',
-    userManagementSubtitle: 'التحكم بالوصول حسب الدور (مدير النظام، مدير العمليات، مدقق/مستعرض)',
+    userManagementSubtitle: 'تعيين الأدوار والصلاحيات ونطاق الشركات لكل مستخدم',
     addUser: 'إضافة مستخدم جديد',
     user: 'المستخدم',
     assignedRole: 'الدور / الصلاحية',

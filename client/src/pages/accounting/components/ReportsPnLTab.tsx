@@ -36,6 +36,16 @@ export const ReportsPnLTab: React.FC<ReportsPnLTabProps> = ({
 
   return (
     <div className="space-y-4">
+      {pnlData?.installmentCashFlow && <section className="rounded-2xl border bg-slate-50 p-4 space-y-2">
+        <h3 className="font-bold">{isAr ? 'حركة أقساط السيارات في الفترة' : 'Installment movements in period'}</h3>
+        <div className="flex flex-wrap gap-5 text-sm">
+          <span>{isAr ? 'محصّل من السائقين' : 'Driver receipts'}: {Number(pnlData.installmentCashFlow.driverCollected).toLocaleString()} EGP</span>
+          <span>{isAr ? 'مخصوم من مستحقات السائقين' : 'Wage offsets'}: {Number(pnlData.installmentCashFlow.driverOffsets).toLocaleString()} EGP</span>
+          <span>{isAr ? 'مدفوع للبنوك' : 'Bank payments'}: {Number(pnlData.installmentCashFlow.bankPaid).toLocaleString()} EGP</span>
+          <strong>{isAr ? 'صافي حركة الخزينة للأقساط' : 'Net installment cash flow'}: {Number(pnlData.installmentCashFlow.netCash).toLocaleString()} EGP</strong>
+        </div>
+        <p className="text-xs text-slate-500">{isAr ? 'تحصيل قسط السائق لا يُضاف لإيراد الرحلات. الخصم من المستحقات تسوية بدون حركة خزينة.' : 'Driver receipts are separate from trip revenue. Wage offsets do not move cash.'}</p>
+      </section>}
       {/* Sub-tab Pill Switcher */}
       <div className="flex items-center justify-between gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="flex items-center gap-1.5 overflow-x-auto">
@@ -278,7 +288,7 @@ export const ReportsPnLTab: React.FC<ReportsPnLTabProps> = ({
                           </h3>
 
                           <div className="flex items-baseline gap-2 pt-1">
-                            <span className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-white">
+                            <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-white">
                               {netProfitVal.toLocaleString()}
                             </span>
                             <span className="text-sm font-bold text-white/80">جنيه مصري</span>
@@ -323,7 +333,7 @@ export const ReportsPnLTab: React.FC<ReportsPnLTabProps> = ({
                             <span className="font-bold text-slate-700 block mb-2">
                               {isAr ? 'توزيع مراكز النفقات والتكاليف لهذا الشهر:' : 'Monthly Expense Allocation Breakdown:'}
                             </span>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                            <div className="accounting-metrics grid gap-3">
                               <div className="p-3 bg-white border border-rose-200 rounded-2xl space-y-1">
                                 <span className="text-[11px] text-slate-500 font-semibold block">🏦 أقساط السيارات</span>
                                 <span className="text-sm font-black text-rose-700 font-mono block">

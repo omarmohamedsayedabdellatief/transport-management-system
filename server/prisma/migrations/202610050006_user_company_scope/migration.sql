@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "companyScopeEnabled" BOOLEAN NOT NULL DEFAULT false, ADD COLUMN "companyIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

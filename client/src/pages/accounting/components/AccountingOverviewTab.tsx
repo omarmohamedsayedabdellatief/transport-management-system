@@ -1,3 +1,4 @@
+import { AccountingActionButton } from './AccountingActionButton';
 import React, { useState } from 'react';
 import {
   Wallet,
@@ -80,7 +81,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
     <div className="space-y-6">
       {/* 1. Level 1 - Executive Financial Health Metric Cards */}
       <div>
-        <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3 px-1">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-blue-600" />
             <h2 className="text-sm font-black text-slate-900">
@@ -96,17 +97,17 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="accounting-metrics accounting-summary-metrics grid gap-3">
           {/* 1. Total Billing */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+            <div className="flex items-start justify-between gap-2 text-[11px] font-semibold text-slate-500">
               <span>{isAr ? 'إجمالي المطالبات' : 'Gross Billing'}</span>
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700">
                 {selectedMonth ? `شهر ${selectedMonth}` : 'السنة'}
               </span>
             </div>
-            <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-lg sm:text-xl font-black text-slate-900 font-mono">
+            <div className="mt-1.5 flex flex-wrap items-baseline gap-1">
+              <span className="text-lg font-semibold text-slate-900 font-mono">
                 {totalBilling.toLocaleString()}
               </span>
               <span className="text-xs font-normal text-slate-500">ج.م</span>
@@ -118,12 +119,12 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
 
           {/* 2. Driver Net Pay */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+            <div className="flex items-start justify-between gap-2 text-[11px] font-semibold text-slate-500">
               <span>{isAr ? 'مستحقات السائقين' : 'Driver Net Pay'}</span>
               <Users className="h-3.5 w-3.5 text-amber-500" />
             </div>
-            <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-lg sm:text-xl font-black text-amber-600 font-mono">
+            <div className="mt-1.5 flex flex-wrap items-baseline gap-1">
+              <span className="text-lg font-semibold text-amber-600 font-mono">
                 {netDriverPay.toLocaleString()}
               </span>
               <span className="text-xs font-normal text-slate-500">ج.م</span>
@@ -135,12 +136,12 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
 
           {/* 3. Driver Overtime */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+            <div className="flex items-start justify-between gap-2 text-[11px] font-semibold text-slate-500">
               <span>{isAr ? 'إضافي السائقين' : 'Driver Overtime'}</span>
               <Clock className="h-3.5 w-3.5 text-indigo-500" />
             </div>
-            <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-lg sm:text-xl font-black text-indigo-600 font-mono">
+            <div className="mt-1.5 flex flex-wrap items-baseline gap-1">
+              <span className="text-lg font-semibold text-indigo-600 font-mono">
                 {totalOvertime.toLocaleString()}
               </span>
               <span className="text-xs font-normal text-slate-500">ج.م</span>
@@ -152,12 +153,12 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
 
           {/* 4. Gross Direct Profit */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+            <div className="flex items-start justify-between gap-2 text-[11px] font-semibold text-slate-500">
               <span>{isAr ? 'مجمل الربح التشغيلي' : 'Gross Profit'}</span>
               <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
             </div>
-            <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-lg sm:text-xl font-black text-emerald-600 font-mono">
+            <div className="mt-1.5 flex flex-wrap items-baseline gap-1">
+              <span className="text-lg font-semibold text-emerald-600 font-mono">
                 {grossProfit.toLocaleString()}
               </span>
               <span className="text-xs font-normal text-slate-500">ج.م</span>
@@ -169,12 +170,12 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
 
           {/* 5. Withholding Tax (3%) */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+            <div className="flex items-start justify-between gap-2 text-[11px] font-semibold text-slate-500">
               <span>{isAr ? 'ضريبة الخصم (3%)' : 'W/H Tax (3%)'}</span>
               <Receipt className="h-3.5 w-3.5 text-rose-500" />
             </div>
-            <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-lg sm:text-xl font-black text-rose-600 font-mono">
+            <div className="mt-1.5 flex flex-wrap items-baseline gap-1">
+              <span className="text-lg font-semibold text-rose-600 font-mono">
                 {withholdingTax.toLocaleString()}
               </span>
               <span className="text-xs font-normal text-slate-500">ج.م</span>
@@ -186,12 +187,12 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
 
           {/* 6. Expenses */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+            <div className="flex items-start justify-between gap-2 text-[11px] font-semibold text-slate-500">
               <span>{isAr ? 'المصروفات العامة' : 'General Expenses'}</span>
               <DollarSign className="h-3.5 w-3.5 text-rose-700" />
             </div>
-            <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-lg sm:text-xl font-black text-rose-700 font-mono">
+            <div className="mt-1.5 flex flex-wrap items-baseline gap-1">
+              <span className="text-lg font-semibold text-rose-700 font-mono">
                 {totalExpenses.toLocaleString()}
               </span>
               <span className="text-xs font-normal text-slate-500">ج.م</span>
@@ -211,58 +212,60 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            <AccountingActionButton
               onClick={onOpenAddOp}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>{isAr ? 'إضافة حركة تشغيل' : 'Add Operation'}</span>
-            </button>
+            </AccountingActionButton>
 
-            <button
+            <AccountingActionButton
               onClick={onOpenClientReceipt}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
             >
               <Wallet className="h-3.5 w-3.5" />
               <span>{isAr ? 'تحصيل من عميل' : 'Client Receipt'}</span>
-            </button>
+            </AccountingActionButton>
 
-            <button
+            <AccountingActionButton
               onClick={onOpenPayDriver}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
             >
               <Users className="h-3.5 w-3.5" />
               <span>{isAr ? 'صرف مستحق سائق' : 'Pay Driver'}</span>
-            </button>
+            </AccountingActionButton>
 
-            <button
+            <AccountingActionButton
               onClick={onOpenAddExpense}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
             >
               <DollarSign className="h-3.5 w-3.5" />
               <span>{isAr ? 'تسجيل مصروف' : 'Add Expense'}</span>
-            </button>
+            </AccountingActionButton>
 
-            <button
+            <AccountingActionButton
               onClick={onOpenStaffPayroll}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
             >
               <Briefcase className="h-3.5 w-3.5" />
               <span>{isAr ? 'مسير راتب' : 'Staff Payroll'}</span>
-            </button>
+            </AccountingActionButton>
           </div>
         </div>
       </div>
 
+      {treasuryData?.balancesVisible === false && <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">{isAr ? 'أرصدة الخزينة والكشوف متاحة للمالك فقط. يمكنك تسجيل التحصيل والصرف حسب صلاحياتك.' : 'Treasury balances and statements are visible only to the owner. You can record receipts and payments according to your permissions.'}</p>}
+      {treasuryData?.balancesVisible === true && <>
       {/* 3. Treasury & Bank Liquidity Section */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-5 rounded-3xl shadow-md border border-slate-700/60 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-700/60">
+        <div className="flex flex-col gap-3 pb-3 border-b border-slate-700/60">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center shrink-0">
               <Wallet className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-black tracking-tight text-white flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-white flex flex-wrap items-center gap-2">
                 <span>{isAr ? 'الخزينة والسيولة النقدية والبنوك الحية' : 'Live Treasury & Bank Liquidity'}</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
                   {isAr ? 'متصل بالبنوك والخزن' : 'Connected'}
@@ -276,22 +279,22 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
+          <div className="flex flex-wrap items-center gap-2">
+            <AccountingActionButton
               onClick={onOpenCreateAccount}
               className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>{isAr ? 'حساب خزينة جديد' : 'New Account'}</span>
-            </button>
+            </AccountingActionButton>
 
-            <button
+            <AccountingActionButton
               onClick={onOpenTransfer}
               className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-200 border border-indigo-500/30 rounded-xl text-xs font-bold transition-colors"
             >
               <ArrowRightLeft className="h-3.5 w-3.5" />
               <span>{isAr ? 'تحويل بين الخزن' : 'Transfer'}</span>
-            </button>
+            </AccountingActionButton>
 
             <button
               onClick={() => setShowFlowGuide(!showFlowGuide)}
@@ -303,8 +306,8 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
         </div>
 
         {/* 3 Core Liquidity Blocks */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/70 flex items-center justify-between">
+        <div className="accounting-cards grid gap-3">
+          <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/70 flex items-center justify-between gap-3">
             <div>
               <span className="text-[11px] font-bold text-slate-400 block">{isAr ? '💵 الخزينة النقدية (الكاش)' : 'Cash Vault'}</span>
               <span className="text-lg font-black text-emerald-400 mt-0.5 block font-mono">
@@ -317,7 +320,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
             </div>
           </div>
 
-          <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/70 flex items-center justify-between">
+          <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/70 flex items-center justify-between gap-3">
             <div>
               <span className="text-[11px] font-bold text-slate-400 block">{isAr ? '🏦 الحسابات البنكية (جاري)' : 'Bank Accounts'}</span>
               <span className="text-lg font-black text-blue-400 mt-0.5 block font-mono">
@@ -330,7 +333,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
             </div>
           </div>
 
-          <div className="bg-indigo-950/60 p-3.5 rounded-2xl border border-indigo-500/40 flex items-center justify-between">
+          <div className="bg-indigo-950/60 p-3.5 rounded-2xl border border-indigo-500/40 flex items-center justify-between gap-3">
             <div>
               <span className="text-[11px] font-bold text-indigo-300 block">{isAr ? '💎 إجمالي السيولة المتاحة' : 'Total Liquidity'}</span>
               <span className="text-lg font-black text-white mt-0.5 block font-mono">
@@ -351,14 +354,14 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
               <span>{isAr ? '🗺️ خريطة الدورة المالية المبسطة (اضغط على أي خطوة للانتقال لها وتطبيقها):' : '🗺️ Simplified Financial Cycle Map (Click any step to navigate):'}</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+            <div className="accounting-metrics grid gap-2.5">
               {/* Step 1 */}
               <button
                 onClick={() => onNavigateTab('operations')}
                 className="p-3 rounded-2xl text-right transition-all flex flex-col justify-between bg-slate-800/60 hover:bg-slate-800 border border-slate-700 text-slate-300"
               >
                 <div>
-                  <div className="flex items-center justify-between text-[11px] font-black text-blue-400 mb-1">
+                  <div className="flex items-start justify-between gap-2 text-[11px] font-black text-blue-400 mb-1">
                     <span>1. تشغيل وفواتير اليومية</span>
                     <span>✍️</span>
                   </div>
@@ -377,7 +380,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
                 className="p-3 rounded-2xl text-right transition-all flex flex-col justify-between bg-slate-800/60 hover:bg-slate-800 border border-slate-700 text-slate-300"
               >
                 <div>
-                  <div className="flex items-center justify-between text-[11px] font-black text-emerald-400 mb-1">
+                  <div className="flex items-start justify-between gap-2 text-[11px] font-black text-emerald-400 mb-1">
                     <span>2. تحصيل فلوس العملاء</span>
                     <span>📥</span>
                   </div>
@@ -396,7 +399,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
                 className="p-3 rounded-2xl text-right transition-all flex flex-col justify-between bg-slate-800/60 hover:bg-slate-800 border border-slate-700 text-slate-300"
               >
                 <div>
-                  <div className="flex items-center justify-between text-[11px] font-black text-amber-400 mb-1">
+                  <div className="flex items-start justify-between gap-2 text-[11px] font-black text-amber-400 mb-1">
                     <span>3. صرف مستحقات السائقين</span>
                     <span>💸</span>
                   </div>
@@ -415,7 +418,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
                 className="p-3 rounded-2xl text-right transition-all flex flex-col justify-between bg-slate-800/60 hover:bg-slate-800 border border-slate-700 text-slate-300"
               >
                 <div>
-                  <div className="flex items-center justify-between text-[11px] font-black text-purple-400 mb-1">
+                  <div className="flex items-start justify-between gap-2 text-[11px] font-black text-purple-400 mb-1">
                     <span>4. سداد فواتير الموردين</span>
                     <span>🤝</span>
                   </div>
@@ -434,7 +437,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
                 className="p-3 rounded-2xl text-right transition-all flex flex-col justify-between bg-slate-800/60 hover:bg-slate-800 border border-slate-700 text-slate-300"
               >
                 <div>
-                  <div className="flex items-center justify-between text-[11px] font-black text-rose-400 mb-1">
+                  <div className="flex items-start justify-between gap-2 text-[11px] font-black text-rose-400 mb-1">
                     <span>5. قائمة الأرباح (P&L)</span>
                     <span>📊</span>
                   </div>
@@ -453,7 +456,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
 
       {/* 4. Vaults & Bank Accounts Detail Cards */}
       <div>
-        <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3 px-1">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-slate-700" />
             <h3 className="text-sm font-black text-slate-900">
@@ -465,7 +468,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <div className="accounting-cards grid gap-3.5">
           {treasuryData?.accounts?.map((acc: any) => {
             const isBank = acc.kind === 'BANK';
             const isSelected = selectedAccountIdForStatement === acc.id;
@@ -490,7 +493,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
                         {isBank ? '🏦' : '💵'}
                       </div>
                       <div>
-                        <h4 className="text-xs font-black text-slate-900 leading-tight">{acc.name}</h4>
+                        <h4 className="text-xs font-black text-slate-900 leading-relaxed">{acc.name}</h4>
                         <span className="text-[10px] font-semibold text-slate-400 block mt-0.5">
                           {isBank ? `بنك: ${acc.bankName || 'حساب بنكي'}` : 'خزينة نقدية (كاش)'}
                         </span>
@@ -509,7 +512,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
                   </div>
 
                   {acc.reference && (
-                    <div className="mt-2.5 text-[10px] font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 flex items-center justify-between">
+                    <div className="mt-2.5 text-[10px] font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 flex items-center justify-between gap-3">
                       <span>{isAr ? 'رقم الحساب / المرجع:' : 'Ref / IBAN:'}</span>
                       <span className="font-mono font-bold text-slate-700">{acc.reference}</span>
                     </div>
@@ -518,7 +521,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
                   {/* Current Balance */}
                   <div className="mt-3 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
                     <span className="text-[10px] font-bold text-slate-400 block">{isAr ? 'الرصيد الفعلي الحالي:' : 'Current Balance:'}</span>
-                    <div className="flex items-baseline gap-1 mt-0.5">
+                    <div className="flex flex-wrap items-baseline gap-1 mt-0.5">
                       <span
                         className={`text-xl font-black font-mono ${
                           acc.currentBalance >= 0 ? 'text-slate-900' : 'text-rose-600'
@@ -548,7 +551,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
                   </div>
                 </div>
 
-                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-3">
                   <span className="text-[10px] text-slate-400 font-medium">
                     {acc.transactionCount || 0} {isAr ? 'حركة مسجلة' : 'entries'}
                   </span>
@@ -668,6 +671,7 @@ export const AccountingOverviewTab: React.FC<AccountingOverviewTabProps> = ({
           )}
         </div>
       )}
+      </>}
     </div>
   );
 };

@@ -1,3 +1,6 @@
+import { AccountingActionButton } from './AccountingActionButton';
+import { InstallmentSchedule } from './InstallmentSchedule';
+import { VehicleFleetPicker } from './VehicleFleetPicker';
 import React, { useState } from 'react';
 import {
   Truck,
@@ -46,7 +49,7 @@ interface SuppliersFleetTabProps {
   instLoading: boolean;
   instSummary?: any;
   onOpenAddInstallment: () => void;
-  onToggleInstallmentStatus: (id: string, currentStatus: string) => void;
+  onInstallmentPayment: (row: InstallmentItem, bank: boolean) => void;
 }
 
 export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
@@ -73,7 +76,7 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
   instLoading,
   instSummary,
   onOpenAddInstallment,
-  onToggleInstallmentStatus,
+  onInstallmentPayment,
 }) => {
   const [subTab, setSubTab] = useState<'suppliers' | 'fleet_economics'>('suppliers');
 
@@ -136,7 +139,7 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
       {subTab === 'suppliers' && (
         <div className="space-y-4">
           {/* Supplier Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="accounting-metrics grid gap-3">
             {suppliersSummary && suppliersSummary.length > 0 ? (
               suppliersSummary.map((s: any) => {
                 const balanceVal = Number(s.balance ?? 0);
@@ -169,7 +172,7 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
                         </span>
                       </div>
                       <div className="pt-2">
-                        <button
+                        <AccountingActionButton
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -179,7 +182,7 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
                         >
                           <Printer className="h-3 w-3" />
                           <span>{isAr ? '📄 فاتورة ومطالبة' : 'Invoice'}</span>
-                        </button>
+                        </AccountingActionButton>
                       </div>
                     </div>
                   </div>
@@ -207,27 +210,27 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
+              <AccountingActionButton
                 onClick={() => onOpenSupplierInvoice(selectedSupplier)}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
               >
                 <Printer className="h-4 w-4" />
                 <span>{isAr ? '🖨️ فاتورة ومطالبة المورد' : 'Supplier Invoice'}</span>
-              </button>
-              <button
+              </AccountingActionButton>
+              <AccountingActionButton
                 onClick={onOpenSupplierTx}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
               >
                 <Plus className="h-4 w-4" />
                 <span>{isAr ? 'إضافة قيد / مطالبة' : 'Add Bill'}</span>
-              </button>
-              <button
+              </AccountingActionButton>
+              <AccountingActionButton
                 onClick={() => onOpenSupplierPay(selectedSupplier)}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
               >
                 <Wallet className="h-4 w-4" />
                 <span>{isAr ? 'صرف دفعة للمورد' : 'Pay Supplier'}</span>
-              </button>
+              </AccountingActionButton>
             </div>
           </div>
 
@@ -311,34 +314,12 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
                 </div>
               </div>
 
-              {/* Dynamic Vehicle Selector */}
-              {(() => {
-                const compV = (dbVehicles || []).filter((v: any) => !v.supplierId && !v.supplier);
-                const supV = (dbVehicles || []).filter((v: any) => !!(v.supplierId || v.supplier));
-                return (
-                  <select
-                    value={selectedVehiclePlate}
-                    onChange={(e) => setSelectedVehiclePlate(e.target.value)}
-                    className="py-1.5 px-3 text-xs font-bold bg-purple-50/70 border border-purple-200 text-purple-900 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-purple-500 max-w-xs"
-                  >
-                    <option value="">{isAr ? '🚗 جميع المركبات (أسطول وموردين)' : '🚗 All Fleet Vehicles'}</option>
-                    <optgroup label={isAr ? `🏢 أسطول الشركة الداخلي (${compV.length} مركبة)` : 'Company Fleet'}>
-                      {compV.map((v: any) => (
-                        <option key={v.id || v.plateNumber} value={v.plateNumber}>
-                          {v.plateNumber} - {v.make} {v.model} {v.assignedDriver ? `(${v.assignedDriver.fullName})` : ''}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label={isAr ? `🚚 سيارات الموردين والشركاء (${supV.length} مركبة)` : 'Supplier Vehicles'}>
-                      {supV.map((v: any) => (
-                        <option key={v.id || v.plateNumber} value={v.plateNumber}>
-                          {v.plateNumber} - {v.make} {v.model} [مورد: {v.supplier?.name || 'شريك'}]
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                );
-              })()}
+              <VehicleFleetPicker
+                vehicles={dbVehicles || []}
+                value={selectedVehiclePlate}
+                onChange={setSelectedVehiclePlate}
+                isAr={isAr}
+              />
 
               {/* Instant Search */}
               <div className="relative">
@@ -364,13 +345,13 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <button
+              <AccountingActionButton
                 onClick={onOpenAddInstallment}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
               >
                 <Plus className="h-4 w-4" />
                 <span>{isAr ? 'إضافة قسط جديد' : 'Add Installment'}</span>
-              </button>
+              </AccountingActionButton>
             </div>
           </div>
 
@@ -414,19 +395,11 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="accounting-metrics grid gap-3">
                   <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/70">
                     <span className="text-[10px] font-bold text-slate-400 block">{isAr ? 'الرحلات المنفذة' : 'Completed Trips'}</span>
                     <span className="text-lg font-black text-white mt-0.5 block font-mono">{currentV.totalTrips || 0}</span>
                     <span className="text-[10px] text-slate-400">{isAr ? 'خلال الفترة' : 'In period'}</span>
-                  </div>
-
-                  <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/70">
-                    <span className="text-[10px] font-bold text-slate-400 block">{isAr ? 'إيرادات الرحلات' : 'Gross Revenue'}</span>
-                    <span className="text-lg font-black text-blue-300 mt-0.5 block font-mono">
-                      {Number(currentV.grossRevenue || 0).toLocaleString()} <span className="text-xs font-normal">ج.م</span>
-                    </span>
-                    <span className="text-[10px] text-blue-400 font-medium">{isAr ? 'فواتير العملاء' : 'From billing'}</span>
                   </div>
 
                   <div className="bg-purple-900/40 p-3 rounded-2xl border border-purple-500/40">
@@ -437,15 +410,14 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
                     <span className="text-[10px] text-purple-300/80">{isAr ? 'عوائد الرحلات للقسط' : 'For installment'}</span>
                   </div>
 
-                  <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/70">
-                    <span className="text-[10px] font-bold text-slate-400 block">{isAr ? 'صيانة ومصروفات' : 'Maintenance & Fuel'}</span>
-                    <span className="text-lg font-black text-rose-300 mt-0.5 block font-mono">
-                      {Number(currentV.totalExpenses || 0).toLocaleString()} <span className="text-xs font-normal">ج.م</span>
-                    </span>
-                    <span className="text-[10px] text-rose-400 font-medium font-mono">
-                      {isAr ? `صيانة: ${Number(currentV.maintenanceCosts || 0).toLocaleString()} ج.م` : ''}
-                    </span>
-                  </div>
+                  {[
+                    { key: 'fuelCosts', label: isAr ? 'سولار ووقود' : 'Fuel' },
+                    { key: 'maintenanceCosts', label: isAr ? 'صيانة' : 'Maintenance' },
+                    { key: 'otherExpenses', label: isAr ? 'مصروفات أخرى' : 'Other expenses' },
+                  ].map(({key,label}) => <div key={key} className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/70">
+                    <span className="text-[10px] font-bold text-slate-400 block">{label}</span>
+                    <span className="text-lg font-black text-rose-300 mt-0.5 block font-mono">{Number(currentV[key] || 0).toLocaleString()} <span className="text-xs font-normal">ج.م</span></span>
+                  </div>)}
 
                   <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/70">
                     <span className="text-[10px] font-bold text-slate-400 block">{isAr ? 'أقساط مسددة' : 'Installments Paid'}</span>
@@ -460,10 +432,10 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
                   <div className="bg-emerald-950/60 p-3 rounded-2xl border border-emerald-500/40">
                     <span className="text-[10px] font-bold text-emerald-300 block">{isAr ? 'صافي الفائض والأرباح' : 'Net Surplus / ROI'}</span>
                     <span className="text-lg font-black text-emerald-400 mt-0.5 block font-mono">
-                      {Number(currentV.netCashFlow || currentV.netROI || 0).toLocaleString()} <span className="text-xs font-normal">ج.م</span>
+                      {Number(currentV.netCashFlow ?? currentV.netROI ?? 0).toLocaleString()} <span className="text-xs font-normal">ج.م</span>
                     </span>
                     <span className="text-[10px] text-emerald-300 font-bold">
-                      {isAr ? `هامش الربحية: ${currentV.marginPercent || 0}%` : `Margin: ${currentV.marginPercent || 0}%`}
+                      {isAr ? 'بعد السولار والصيانة والمصروفات والأقساط' : 'After fuel, maintenance, other expenses and installments'}
                     </span>
                   </div>
                 </div>
@@ -487,7 +459,7 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
             const totalVehiclesCostAll = compRental + supCost;
 
             return (
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="accounting-metrics grid gap-3">
                 {/* 1. Company Fleet Rental Income */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
                   <span className="text-xs text-slate-500 font-medium block">
@@ -570,7 +542,9 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
                     <th className="py-3 px-4">السائق المخصص</th>
                     <th className="py-3 px-4 text-center">الرحلات المنفذة</th>
                     <th className="py-3 px-4 text-left">إيجار الرحلات المحقق</th>
-                    <th className="py-3 px-4 text-left">مصاريف وصيانة</th>
+                    <th className="py-3 px-4 text-left">سولار ووقود</th>
+                    <th className="py-3 px-4 text-left">صيانة</th>
+                    <th className="py-3 px-4 text-left">مصروفات أخرى</th>
                     <th className="py-3 px-4 text-left">أقساط مسددة</th>
                     <th className="py-3 px-4 text-left">صافي الفائض / العجز</th>
                     <th className="py-3 px-4 text-center">الإجراء</th>
@@ -579,13 +553,13 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {vehicleEconLoading ? (
                     <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-400 font-medium">
+                      <td colSpan={11} className="py-8 text-center text-slate-400 font-medium">
                         {isAr ? 'جاري تحميل عوائد الأسطول...' : 'Loading fleet economics...'}
                       </td>
                     </tr>
                   ) : !vehicleEconData?.items?.length ? (
                     <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-400 font-medium">
+                      <td colSpan={11} className="py-8 text-center text-slate-400 font-medium">
                         {isAr ? 'لا توجد بيانات تشغيل لأسطول الشركة في هذه الفترة' : 'No vehicle operations recorded'}
                       </td>
                     </tr>
@@ -614,9 +588,7 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
                           <td className="py-2.5 px-4 text-left font-black text-purple-700 font-mono">
                             {Number(v.totalVehicleCostAllocated ?? v.vehicleDirectCost ?? 0).toLocaleString()} ج.م
                           </td>
-                          <td className="py-2.5 px-4 text-left font-semibold text-rose-600 font-mono">
-                            {Number(v.totalExpenses ?? (Number(v.maintenanceCosts || 0) + Number(v.otherExpenses || 0))).toLocaleString()} ج.م
-                          </td>
+                          {['fuelCosts','maintenanceCosts','otherExpenses'].map(key => <td key={key} className="py-2.5 px-4 text-left font-semibold text-rose-600 font-mono">{Number(v[key] || 0).toLocaleString()} ج.م</td>)}
                           <td className="py-2.5 px-4 text-left font-semibold text-amber-700 font-mono">
                             {Number(v.totalInstallmentsPaid ?? v.totalInstallments ?? 0).toLocaleString()} ج.م
                           </td>
@@ -650,118 +622,12 @@ export const SuppliersFleetTab: React.FC<SuppliersFleetTabProps> = ({
             </div>
           </div>
 
-          {/* Bank Installments Schedule Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-            <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-bold text-slate-900">
-                  {isAr ? '📑 جدول استحقاقات وسداد الأقساط البنكية' : 'Bank Installments Schedule'}
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  {selectedVehiclePlate
-                    ? (isAr ? `عرض الأقساط الخاصة بالمركبة: ${selectedVehiclePlate}` : `Installments for: ${selectedVehiclePlate}`)
-                    : (isAr ? 'عرض كافة الأقساط المسجلة لكافة الأصول' : 'Showing all installments')}
-                </p>
-              </div>
-
-              {selectedVehiclePlate && (
-                <span className="px-2.5 py-1 text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-lg">
-                  {selectedVehiclePlate}
-                </span>
-              )}
-            </div>
-
-            <div className="overflow-x-auto max-h-[600px]">
-              <table className="w-full text-xs text-right border-collapse">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold sticky top-0 z-10">
-                  <tr>
-                    <th className="py-3 px-4">رقم القسط</th>
-                    <th className="py-3 px-4">البيان والأصل</th>
-                    <th className="py-3 px-4">لوحة المركبة</th>
-                    <th className="py-3 px-4">البنك المسحوب عليه</th>
-                    <th className="py-3 px-4">تاريخ استحقاق البنك</th>
-                    <th className="py-3 px-4 text-left">قسط البنك</th>
-                    <th className="py-3 px-4 text-left">قسط العميل</th>
-                    <th className="py-3 px-4 text-left">الفرق والربح</th>
-                    <th className="py-3 px-4 text-center">حالة السداد</th>
-                    <th className="py-3 px-4 text-center">تغيير الحالة</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {instLoading ? (
-                    <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-400 font-medium">
-                        {isAr ? 'جاري تحميل جدول الأقساط...' : 'Loading installments...'}
-                      </td>
-                    </tr>
-                  ) : !installmentsData || installmentsData.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-400 font-medium">
-                        {isAr ? 'لا توجد أقساط مسجلة' : 'No installments found'}
-                      </td>
-                    </tr>
-                  ) : (
-                    installmentsData.map((inst: InstallmentItem) => (
-                      <tr key={inst.id} className="hover:bg-blue-50/30 transition-colors">
-                        <td className="py-2.5 px-4 font-bold text-slate-900">#{inst.installmentNumber}</td>
-                        <td className="py-2.5 px-4 font-semibold text-slate-800">{inst.assetName}</td>
-                        <td className="py-2.5 px-4 font-mono text-purple-900 font-bold">{inst.vehiclePlate || '-'}</td>
-                        <td className="py-2.5 px-4 text-slate-600">{inst.bankName || '-'}</td>
-                        <td className="py-2.5 px-4 font-semibold text-slate-700">
-                          {new Date(inst.bankDueDate).toLocaleDateString(isAr ? 'ar-EG' : 'en-US')}
-                        </td>
-                        <td className="py-2.5 px-4 text-left font-black text-rose-600 font-mono">
-                          {Number(inst.bankAmount).toLocaleString()} ج.م
-                        </td>
-                        <td className="py-2.5 px-4 text-left font-bold text-slate-900 font-mono">
-                          {inst.clientAmount ? `${Number(inst.clientAmount).toLocaleString()} ج.م` : '-'}
-                        </td>
-                        <td className="py-2.5 px-4 text-left font-bold text-emerald-600 font-mono">
-                          {inst.margin ? `${Number(inst.margin).toLocaleString()} ج.م` : '-'}
-                        </td>
-                        <td className="py-2.5 px-4 text-center">
-                          <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                              inst.status === 'PAID' || inst.status === 'تم الدفع'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-amber-50 text-amber-700 border border-amber-200'
-                            }`}
-                          >
-                            {inst.status === 'PAID' || inst.status === 'تم الدفع'
-                              ? isAr
-                                ? 'تم السداد'
-                                : 'Paid'
-                              : isAr
-                              ? 'مستحق'
-                              : 'Pending'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-4 text-center">
-                          <button
-                            onClick={() =>
-                              onToggleInstallmentStatus(
-                                inst.id,
-                                inst.status === 'PAID' || inst.status === 'تم الدفع' ? 'PENDING' : 'PAID'
-                              )
-                            }
-                            className="px-2.5 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
-                          >
-                            {inst.status === 'PAID' || inst.status === 'تم الدفع'
-                              ? isAr
-                                ? 'تحويل لمستحق'
-                                : 'Mark Pending'
-                              : isAr
-                              ? 'تسجيل كسداد'
-                              : 'Mark Paid'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border bg-emerald-50 p-4"><p>{isAr ? 'المتبقي على السائقين — الأقساط' : 'Driver installments outstanding'}</p><strong>{Number(instSummary?.totalDriverPending || 0).toLocaleString()} EGP</strong></div>
+            <div className="rounded-xl border p-4"><p>{isAr ? 'محصّل بالخزينة من السائقين' : 'Collected from drivers'}</p><strong>{Number(instSummary?.totalDriverCash || 0).toLocaleString()} EGP</strong></div>
+            <div className="rounded-xl border p-4"><p>{isAr ? 'أقساط مخصومة من المستحقات' : 'Installment wage offsets'}</p><strong>{Number(instSummary?.totalDriverOffset || 0).toLocaleString()} EGP</strong></div>
           </div>
+          <InstallmentSchedule rows={installmentsData || []} loading={instLoading} isAr={isAr} onPay={onInstallmentPayment} />
         </div>
       )}
     </div>

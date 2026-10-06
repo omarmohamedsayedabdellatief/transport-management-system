@@ -121,6 +121,10 @@ enum MaintenanceStatus {
 // ----------------------------------------------------
 
 model User {
+  roleId String?
+  assignedRole AppRole? @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  companyScopeEnabled Boolean @default(false)
+  companyIds String[] @default([])
   clientScopeId  String?
   partnerScopeId String?
   driverScopeId  String?
@@ -193,7 +197,7 @@ model Vehicle {
   make              String
   model             String
   manufacturingYear Int           @map("manufacturing_year")
-  vehicleType       VehicleType   @map("vehicle_type")
+  vehicleType       String   @map("vehicle_type")
   capacity          Int
   currentMileage    Int           @default(0) @map("current_mileage")
   status            VehicleStatus @default(AVAILABLE)
@@ -269,6 +273,7 @@ model ContractVehicle {
 }
 
 model Route {
+  rates RouteRate[]
   enrollments          Enrollment[]
   servicePlans         ServicePlan[]
   id                   String        @id @default(uuid())
@@ -316,6 +321,11 @@ model RouteStop {
 }
 
 model Trip {
+  importMetadata Json?
+  billingTypeId String?
+  billingType TripBillingType? @relation(fields: [billingTypeId], references: [id])
+  billingTypeName String?
+  returnDeparture DateTime?
   billingModel   String          @default("PER_TRIP")
   monthlyAmount  Decimal         @default(0) @db.Decimal(12, 2)
   servicePlanId  String?
@@ -448,6 +458,7 @@ model DriverOvertime {
 }
 
 model Expense {
+  expenseType   String    @default("OTHER") @map("expense_type")
   id            String   @id @default(uuid())
   day           Int?
   month         Int?
@@ -496,6 +507,11 @@ model Installment {
   bankAmount        Decimal   @map("bank_amount") @db.Decimal(12, 2)
   clientDueDate     DateTime? @map("client_due_date") @db.Date
   clientAmount      Decimal?  @map("client_amount") @db.Decimal(12, 2)
+  driverId          String?
+  driverName        String?
+  driverDueDate     DateTime? @db.Date
+  driverAmount      Decimal   @default(0) @db.Decimal(12, 2)
+  payments          InstallmentPayment[]
   margin            Decimal?  @db.Decimal(12, 2)
   chequeNumber      String?   @map("cheque_number")
   bankName          String?   @map("bank_name")
@@ -794,3 +810,124 @@ model DriverSettlement {
   @@map("driver_settlements")
 }
 
+
+model VehicleCategory {
+  code String @id
+  name String @unique
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+}
+model TripBillingType {
+  id String @id @default(uuid())
+  name String @unique
+  direction String
+  active Boolean @default(true)
+  rates RouteRate[]
+  trips Trip[]
+  createdAt DateTime @default(now())
+}
+model RouteRate {
+  id String @id @default(uuid())
+  routeId String
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  billingTypeId String
+  billingType TripBillingType @relation(fields: [billingTypeId], references: [id])
+  departureTime String
+  returnDepartureTime String?
+  saleAmount Decimal @db.Decimal(12, 2)
+  costAmount Decimal @default(0) @db.Decimal(12, 2)
+  driverAllowance Decimal @default(0) @db.Decimal(12, 2)
+  vehicleCost Decimal @default(0) @db.Decimal(12, 2)
+  @@unique([routeId, billingTypeId])
+}
+
+// Immutable driver deductions and partial payments; legacy settlement payments are backfilled.
+model DriverAccountingEntry {
+  id              String   @id @default(uuid())
+  driverId        String?
+  driverName      String
+  month           Int
+  year            Int
+  kind            String
+  amount          Decimal  @db.Decimal(12, 2)
+  date            DateTime @db.Date
+  reference       String
+  notes           String?
+  actorId         String
+  requestKey      String   @unique
+  fingerprint     String
+  treasuryEntryId String?  @unique
+  createdAt       DateTime @default(now())
+
+  @@index([driverName, year, month])
+}
+
+
+model ActivityLog {
+  id String @id @default(uuid())
+  actorId String?
+  actorName String
+  actorEmail String?
+  action String
+  entity String
+  entityId String?
+  method String
+  path String
+  outcome String @default("PENDING")
+  statusCode Int?
+  detail String
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+  @@index([createdAt, id])
+  @@index([actorId, createdAt])
+  @@index([entity, createdAt])
+  @@index([action, createdAt])
+}
+
+// Separate cash payments and wage offsets for each side of a vehicle installment.
+model InstallmentPayment {
+  id String @id @default(uuid())
+  installmentId String
+  installment Installment @relation(fields: [installmentId], references: [id], onDelete: Restrict)
+  kind String
+  amount Decimal @db.Decimal(12, 2)
+  date DateTime @db.Date
+  reference String
+  notes String?
+  actorId String
+  requestKey String @unique
+  fingerprint String
+  treasuryEntryId String? @unique
+  driverEntryId String? @unique
+  createdAt DateTime @default(now())
+  @@index([installmentId, kind])
+  @@index([date])
+}
+
+model AppRole {
+  id String @id @default(uuid())
+  code String? @unique
+  name String @unique
+  description String @default("")
+  permissions String[] @default([])
+  revision Int @default(1)
+  users User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Reviewed, actor-bound Excel imports. The pre-change snapshot is retained for audit/recovery.
+model TripImportBatch {
+  id String @id @default(uuid())
+  actorId String
+  status String @default("PREVIEW")
+  payload Json
+  summary Json
+  beforeSnapshot Json
+  fingerprint String
+  result Json?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  committedAt DateTime?
+  @@index([actorId, createdAt])
+}

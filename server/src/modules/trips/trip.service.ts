@@ -1,3 +1,7 @@
+import { companyScope } from "../../company-scope.js";
+import { prepareTrip } from './trip-pricing.js';
+import { randomUUID } from 'node:crypto';
+import { zonedDeparture } from '../operations/operations.logic.js';
 import { prisma } from '../../prisma.js';
 import { NotFoundError, ValidationError } from '../../types/index.js';
 import { TripConflictEngine } from './trip.conflict-engine.js';
@@ -52,7 +56,7 @@ export class TripService {
             supplier: { select: { id: true, name: true } },
           },
         },
-        vehicle: { select: { id: true, plateNumber: true, make: true, model: true, capacity: true, supplierId: true } },
+        vehicle: { select: { id: true, plateNumber: true, make: true, model: true, capacity: true, vehicleType: true, supplierId: true } },
         driver: { select: { id: true, fullName: true, phoneNumber: true, supplierId: true } },
       },
       orderBy: { scheduledDeparture: 'desc' },
@@ -82,6 +86,9 @@ export class TripService {
   }
 
   static async createTrip(data: any) {
+    return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(7632901)`;
+    data = await prepareTrip(data, undefined, tx);
     const tripDate = new Date(data.tripDate);
     const scheduledDeparture = new Date(data.scheduledDeparture);
     const expectedArrival = new Date(data.expectedArrival);
@@ -97,7 +104,7 @@ export class TripService {
       tripDate,
       scheduledDeparture,
       expectedArrival,
-    });
+    }, tx);
 
     // Fetch Route, Vehicle, Driver details for pricing and supplier linkage
     const [route, vehicle, driver] = await Promise.all([
@@ -117,14 +124,15 @@ export class TripService {
     // Generate unique Trip Number: TRIP-YYYYMMDD-XXXX
     let tripNumber = data.tripNumber;
     if (!tripNumber) {
-      const countToday = await prisma.trip.count({ where: { tripDate } });
       const dateCode = tripDate.toISOString().slice(0, 10).replace(/-/g, '');
-      tripNumber = `TRIP-${dateCode}-${String(countToday + 1).padStart(3, '0')}`;
+      tripNumber = `TRIP-${dateCode}-${randomUUID().slice(0,8)}`;
     }
 
-    const trip = await prisma.trip.create({
+    const trip = await tx.trip.create({
       data: {
         tripNumber,
+        billingTypeId:data.billingTypeId, billingTypeName:data.billingTypeName, direction:data.direction, returnDeparture:data.returnDeparture,
+        billingModel:data.billingModel, monthlyAmount:data.monthlyAmount, billToClientId:data.billToClientId,
         clientId: data.clientId,
         contractId,
         routeId: data.routeId,
@@ -152,14 +160,20 @@ export class TripService {
     });
 
     if (trip.tripStatus === TripStatus.COMPLETED && !data.skipFinancialSync) {
-      await AccountingService.syncTripToFinancials(trip.id).catch(console.error);
+      await AccountingService.syncTripToFinancials(trip.id, tx);
     }
 
     return trip;
+    }, {timeout:20000});
   }
 
   static async updateTrip(id: string, data: any) {
+    return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(7632901)`;
     const current = await this.getTripById(id);
+    if (!['SCHEDULED','DELAYED'].includes(current.tripStatus)) throw new ValidationError('Only scheduled or delayed trips can be edited.');
+    if (await tx.financeLine.count({where:{tripId:id}})) throw new ValidationError('Billed trips cannot be edited.');
+    data = await prepareTrip(data, current, tx);
 
     const tripDate = data.tripDate ? new Date(data.tripDate) : current.tripDate;
     const scheduledDeparture = data.scheduledDeparture ? new Date(data.scheduledDeparture) : current.scheduledDeparture;
@@ -179,9 +193,9 @@ export class TripService {
       scheduledDeparture,
       expectedArrival,
       excludeTripId: id,
-    });
+    }, tx);
 
-    const updated = await prisma.trip.update({
+    const updated = await tx.trip.update({
       where: { id },
       data: {
         ...data,
@@ -198,14 +212,19 @@ export class TripService {
     });
 
     if (updated.tripStatus === TripStatus.COMPLETED) {
-      await AccountingService.syncTripToFinancials(id).catch(console.error);
+      await companyScope.exit(() => AccountingService.syncTripToFinancials(id, tx));
     }
 
     return updated;
+    }, {timeout:20000});
   }
 
   static async updateTripStatus(id: string, data: { tripStatus: TripStatus; actualDeparture?: any; actualArrival?: any; notes?: string }) {
+    return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(7632901)`;
     const current = await this.getTripById(id);
+    const allowed:Record<string,string[]>={SCHEDULED:['IN_PROGRESS','DELAYED','CANCELLED'],DELAYED:['IN_PROGRESS','CANCELLED'],IN_PROGRESS:['COMPLETED','CANCELLED'],COMPLETED:[],CANCELLED:[]};
+    if(!allowed[current.tripStatus]?.includes(data.tripStatus)) throw new ValidationError('Invalid trip status transition.');
 
     const updateData: any = {
       tripStatus: data.tripStatus,
@@ -223,7 +242,7 @@ export class TripService {
       updateData.actualArrival = new Date();
     }
 
-    const updated = await prisma.trip.update({
+    const updated = await tx.trip.update({
       where: { id },
       data: updateData,
       include: { client: true, route: true, vehicle: true, driver: true },
@@ -231,25 +250,28 @@ export class TripService {
 
     // Update fleet & driver real-time status
     if (data.tripStatus === TripStatus.IN_PROGRESS) {
-      await prisma.vehicle.update({ where: { id: current.vehicleId }, data: { status: VehicleStatus.ON_TRIP } });
-      await prisma.driver.update({ where: { id: current.driverId }, data: { dutyStatus: DutyStatus.ON_DUTY } });
+      await tx.vehicle.update({ where: { id: current.vehicleId }, data: { status: VehicleStatus.ON_TRIP } });
+      await tx.driver.update({ where: { id: current.driverId }, data: { dutyStatus: DutyStatus.ON_DUTY } });
     } else if (data.tripStatus === TripStatus.COMPLETED || data.tripStatus === TripStatus.CANCELLED) {
-      await prisma.vehicle.update({ where: { id: current.vehicleId }, data: { status: VehicleStatus.ASSIGNED } });
-      await prisma.driver.update({ where: { id: current.driverId }, data: { dutyStatus: DutyStatus.AVAILABLE } });
+      await tx.vehicle.update({ where: { id: current.vehicleId }, data: { status: VehicleStatus.ASSIGNED } });
+      await tx.driver.update({ where: { id: current.driverId }, data: { dutyStatus: DutyStatus.AVAILABLE } });
     }
 
     // Real-time synchronization to Accounting ledger (DailyOperation & Client/Supplier Ledgers)
     if (data.tripStatus === TripStatus.COMPLETED) {
-      await AccountingService.syncTripToFinancials(id).catch(console.error);
+      await companyScope.exit(() => AccountingService.syncTripToFinancials(id, tx));
     } else if (data.tripStatus === TripStatus.CANCELLED || (current.tripStatus as string) === 'COMPLETED') {
-      await AccountingService.removeTripFromFinancials(id).catch(console.error);
+      await companyScope.exit(() => AccountingService.removeTripFromFinancials(id, tx));
     }
 
     return updated;
+    }, {timeout:20000});
   }
 
   static async batchGenerateTrips(params: {
     routeId: string;
+    billingTypeId?: string;
+    direction?: string;
     startDate: Date;
     endDate: Date;
     shifts: ShiftType[];
@@ -271,20 +293,22 @@ export class TripService {
     const createdTrips: any[] = [];
     const skippedDays: any[] = [];
 
-    const [depHour, depMin] = params.departureTime.split(':').map(Number);
+    if(params.endDate < params.startDate || (params.endDate.getTime()-params.startDate.getTime())/86400000 > 90) throw new ValidationError('Choose a date range of up to 90 days.');
+    const billingType=params.billingTypeId?await prisma.tripBillingType.findUnique({where:{id:params.billingTypeId}}):null;
+    if (billingType && (!billingType.active || !["OUTBOUND", "RETURN"].includes(billingType.direction))) throw new ValidationError("Choose an active outbound or return billing type.");
     const curr = new Date(params.startDate);
     const end = new Date(params.endDate);
 
     while (curr <= end) {
       for (const shift of params.shifts) {
         const tripDate = new Date(curr);
-        const depTime = new Date(curr);
-        depTime.setHours(depHour, depMin, 0, 0);
+        const depTime = zonedDeparture(curr.toISOString().slice(0,10),params.departureTime,'Africa/Cairo');
 
         const arrTime = new Date(depTime.getTime() + params.durationMinutes * 60000);
 
         try {
           const trip = await this.createTrip({
+            billingTypeId: params.billingTypeId, direction: params.direction,
             clientId: route.clientId,
             contractId: activeContract?.id || null,
             routeId: route.id,
@@ -316,6 +340,7 @@ export class TripService {
   }
 
   static async generateDailyTripsFromTemplates(params: {
+    actorId?: string;
     date: string | Date;
     clientId?: string;
     shifts?: ShiftType[];
@@ -324,7 +349,10 @@ export class TripService {
     tripStatus?: TripStatus;
     routeOverrides?: Array<{
       routeId: string;
+      billingTypeId?: string;
+      direction?: string;
       selected?: boolean;
+      exclusionNote?: string;
       driverId?: string;
       vehicleId?: string;
       shift?: ShiftType;
@@ -361,22 +389,33 @@ export class TripService {
           tripDate: targetDate,
           tripStatus: { not: TripStatus.CANCELLED },
         },
-        select: { routeId: true, shift: true },
+        select: { routeId: true, shift: true, direction:true, billingTypeId:true },
       }),
       prisma.trip.count({ where: { tripDate: targetDate } }),
     ]);
 
-    const existingSet = new Set(existingTrips.map((t) => `${t.routeId}_${t.shift}`));
+    const existingSet = new Set(existingTrips.map((t) => `${t.routeId}_${t.shift}_${t.direction}_${t.billingTypeId || ""}`));
     const dateCode = targetDate.toISOString().slice(0, 10).replace(/-/g, '');
     let currentCount = initialTodayCount;
 
     const createdTrips: any[] = [];
     const skippedRoutes: any[] = [];
+    const excludedRoutes: any[] = [];
 
     for (const route of routes) {
       const override = params.routeOverrides?.find((o) => o.routeId === route.id);
       if (override && override.selected === false) {
-        // User explicitly unchecked / excluded this route from today's run
+        const exclusion = {
+          routeId: route.id, routeName: route.routeName,
+          date: targetDate.toISOString().slice(0, 10),
+          shifts: override.shift ? [override.shift] : shiftsToGenerate,
+          note: override.exclusionNote?.trim() || "",
+        };
+        if (params.actorId) await prisma.auditEvent.create({ data: {
+          actorId: params.actorId, action: "EXCLUDE_DAILY_TEMPLATE", entity: "route",
+          entityId: route.id, detail: JSON.stringify(exclusion),
+        } });
+        excludedRoutes.push(exclusion);
         continue;
       }
 
@@ -395,7 +434,8 @@ export class TripService {
       const shiftsForRoute = override?.shift ? [override.shift] : shiftsToGenerate;
 
       for (const shift of shiftsForRoute) {
-        const tripKey = `${route.id}_${shift}`;
+        const chosenType = override?.billingTypeId ? await prisma.tripBillingType.findUnique({where:{id:override.billingTypeId}}) : await prisma.tripBillingType.findFirst({where:{direction:override?.direction || 'OUTBOUND',active:true},orderBy:{createdAt:'asc'}});
+        const tripKey = `${route.id}_${shift}_${chosenType?.direction || 'OUTBOUND'}_${chosenType?.id || ''}`;
         if (existingSet.has(tripKey)) {
           skippedRoutes.push({
             routeId: route.id,
@@ -434,8 +474,7 @@ export class TripService {
           }
         }
 
-        const scheduledDeparture = new Date(targetDate);
-        scheduledDeparture.setHours(depHour, depMin, 0, 0);
+        const scheduledDeparture = zonedDeparture(targetDate.toISOString().slice(0,10),`${String(depHour).padStart(2,'0')}:${String(depMin).padStart(2,'0')}`,'Africa/Cairo');
 
         const durationMinutes = route.estimatedDurationMin || 60;
         const expectedArrival = new Date(scheduledDeparture.getTime() + durationMinutes * 60000);
@@ -451,7 +490,8 @@ export class TripService {
 
         try {
           const trip = await this.createTrip({
-            tripNumber,
+            tripNumber: `TRIP-${dateCode}-${randomUUID().slice(0,8)}`,
+            billingTypeId: chosenType?.id, direction: chosenType?.direction,
             clientId: route.clientId,
             contractId: null,
             routeId: route.id,
@@ -459,10 +499,10 @@ export class TripService {
             vehicleId: effectiveVehicleId,
             executionType,
             supplierId: route.supplierId,
-            saleAmount,
-            costAmount,
-            driverAllowance,
-            vehicleCost,
+            saleAmount:override?.saleAmount,
+            costAmount:override?.costAmount,
+            driverAllowance:override?.driverAllowance,
+            vehicleCost:override?.vehicleCost,
             tripDate: targetDate,
             shift,
             scheduledDeparture,
@@ -494,6 +534,8 @@ export class TripService {
     }
 
     return {
+      excludedCount: excludedRoutes.length,
+      excludedDetails: excludedRoutes,
       totalRoutes: routes.length,
       generatedCount: createdTrips.length,
       skippedCount: skippedRoutes.length,
@@ -504,6 +546,7 @@ export class TripService {
 
   static async deleteTrip(id: string) {
     const trip = await this.getTripById(id);
+    if(await prisma.financeLine.count({where:{tripId:id}})) throw new ValidationError('Billed trips cannot be deleted.');
     if (trip.tripStatus === TripStatus.IN_PROGRESS) {
       await prisma.vehicle.update({ where: { id: trip.vehicleId }, data: { status: VehicleStatus.ASSIGNED } }).catch(() => {});
       await prisma.driver.update({ where: { id: trip.driverId }, data: { dutyStatus: DutyStatus.AVAILABLE } }).catch(() => {});

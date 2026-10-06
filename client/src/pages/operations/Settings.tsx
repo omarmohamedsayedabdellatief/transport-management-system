@@ -1,3 +1,4 @@
+import { TypeSettings } from '../../components/configuration/TypeSettings';
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -20,13 +21,13 @@ import { recordLabel } from "./Records";
 
 export function OperationsSettings() {
   const w = useWords();
-  const { isAdmin, canManage } = useAuth();
+  const { can } = useAuth();
   const q = useData("/bootstrap");
   const a = useAction();
   const users = useQuery({
-    queryKey: ["users"],
+    queryKey: ["settings-users"],
     queryFn: async () => (await api.get("/users")).data.data,
-    enabled: isAdmin,
+    enabled: can('users.view'),
   });
   const [resource, setResource] = useState({
     resource: "vehicle",
@@ -52,7 +53,8 @@ export function OperationsSettings() {
       )}
     >
       {a.feedback}
-      {canManage && (
+      {can('configuration.view') && <TypeSettings />}
+      {(can('vehicles.edit') || can('drivers.edit') || can('contracts.manage')) && (
         <div className="ops-two-col">
           <Panel
             title={w("Vehicle & driver suppliers", "موردو المركبات والسائقين")}
@@ -121,7 +123,7 @@ export function OperationsSettings() {
                     ))}
                 </select>
               </Field>
-              <Button disabled={a.busy}>
+              <Button disabled={a.busy || !can(resource.resource === 'vehicle' ? 'vehicles.edit' : 'drivers.edit')}>
                 {w("Save assignment", "حفظ التعيين")}
               </Button>
             </form>
@@ -172,14 +174,14 @@ export function OperationsSettings() {
                   ))}
                 </select>
               </Field>
-              <Button disabled={a.busy}>
+              <Button disabled={a.busy || !can('contracts.manage')}>
                 {w("Save payer", "حفظ جهة السداد")}
               </Button>
             </form>
           </Panel>
         </div>
       )}
-      {isAdmin && (
+      {can('users.manage') && (
         <Panel
           title={w("Portal access", "صلاحيات البوابات")}
           actions={
@@ -200,7 +202,7 @@ export function OperationsSettings() {
               columns={[
                 { key: "fullName", label: w("User", "المستخدم") },
                 { key: "email", label: w("Email", "البريد") },
-                { key: "role", label: w("Role", "الدور") },
+                { key: "role", label: w("Role", "الدور"), render:(u:any)=> ({ADMIN:w("Owner","المالك"),ACCOUNTANT:w("Accountant","محاسب"),OPERATIONS_MANAGER:w("Operations manager","مدير التشغيلات"),VIEWER:w("Regular user","مستخدم عادي")} as any)[u.role] || u.role },
                 {
                   key: "scope",
                   label: w("Scope", "النطاق"),
@@ -267,10 +269,10 @@ export function OperationsSettings() {
                         r,
                         (
                           {
-                            ADMIN: "مدير النظام",
-                            OPERATIONS_MANAGER: "مدير التشغيل",
+                            ADMIN: "المالك",
+                            OPERATIONS_MANAGER: "مدير التشغيلات",
                             ACCOUNTANT: "محاسب",
-                            VIEWER: "مشاهد",
+                            VIEWER: "مستخدم عادي",
                             DRIVER: "سائق",
                             CLIENT: "عميل",
                             SUPPLIER: "مورد",
@@ -331,46 +333,4 @@ export function OperationsSettings() {
     </Page>
   );
 }
-export function AuditLog() {
-  const w = useWords();
-  const q = useData("/audit");
-  return (
-    <Page
-      title={w("Activity log", "سجل النشاط")}
-      description={w(
-        "The latest 200 recorded operations, financial actions, and access changes.",
-        "آخر ٢٠٠ إجراء مسجل للتشغيل والحسابات والصلاحيات.",
-      )}
-    >
-      {q.data ? (
-        <DataTable
-          rows={q.data}
-          columns={[
-            {
-              key: "createdAt",
-              label: w("Time", "الوقت"),
-              render: (r: any) => new Date(r.createdAt).toLocaleString(),
-            },
-            { key: "action", label: w("Action", "الإجراء") },
-            { key: "entity", label: w("Record type", "نوع السجل") },
-            { key: "entityId", label: w("Record", "السجل") },
-            {
-              key: "detail",
-              label: w("Details", "التفاصيل"),
-              render: (r: any) => (
-                <details>
-                  <summary>{w("View details", "عرض التفاصيل")}</summary>
-                  <pre className="ops-json">
-                    {JSON.stringify(JSON.parse(r.detail), null, 2)}
-                  </pre>
-                </details>
-              ),
-            },
-          ]}
-        />
-      ) : (
-        <Loading query={q} />
-      )}
-    </Page>
-  );
-}
+export { ActivityLog as AuditLog } from './ActivityLog';
