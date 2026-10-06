@@ -1,3 +1,7 @@
+import { UserService } from '../users/user.service.js';
+import { assertCanGrant, preserveRoleAdministrators } from '../roles/roles.routes.js';
+import { accessFor, ensureDefaultRoles, hasPermission, isTreasuryOwner } from '../roles/permissions.js';
+import { listActivity } from './activity-log.js';
 import treasuryRouter, { postDocumentPayment } from "./treasury.js";
 import { analytics } from "./analytics.js";
 import * as XLSX from "xlsx";
@@ -203,7 +207,8 @@ const include: Record<string, any> = {
   },
 };
 function permit(req: AuthenticatedRequest, roles: string[]) {
-  if (!req.user || !roles.includes(req.user.role)) throw new ForbiddenError();
+  if (req.permissionAuthorized) return;
+  if (!req.user || !finance.includes(req.user.role) && !roles.includes(req.user.role)) throw new ForbiddenError();
 }
 const wrap =
   (fn: (req: any, res: any) => Promise<any>) =>
@@ -302,16 +307,8 @@ router.get(
       prisma.site.findMany({ orderBy: { name: "asc" } }),
       prisma.passenger.findMany({ orderBy: { fullName: "asc" } }),
     ]);
-    ok(res, {
-      clients,
-      contracts,
-      vehicles,
-      drivers,
-      routes,
-      partners,
-      sites,
-      passengers,
-    });
+    const available = {clients, contracts, vehicles, drivers, routes, partners, sites, passengers};
+    ok(res, Object.fromEntries(Object.entries(available).map(([resource,rows])=>[resource,hasPermission(req.user,resource+'.view')?rows:[]])));
   }),
 );
 router.get("/analytics", wrap(async (req, res) => {
@@ -386,13 +383,7 @@ router.get(
   "/audit",
   wrap(async (req, res) => {
     permit(req, ["ADMIN"]);
-    ok(
-      res,
-      await prisma.auditEvent.findMany({
-        take: 200,
-        orderBy: { createdAt: "desc" },
-      }),
-    );
+    ok(res, await listActivity(req.query, res.locals.activityId, isTreasuryOwner(req.user)));
   }),
 );
 
@@ -538,6 +529,7 @@ router.post(
     const r = req.params.resource;
     permit(req, financialResources.includes(r) ? finance : managers);
     if (!schemas[r]) throw new NotFoundError();
+    if (r === "installments") throw new ConflictError("استخدم صفحة أقساط السيارات في الحسابات لتسجيل الاستحقاقات والتحصيل والسداد.");
     const data = schemas[r].parse(req.body);
     ok(
       res,
@@ -557,6 +549,7 @@ router.put(
     const r = req.params.resource;
     permit(req, financialResources.includes(r) ? finance : managers);
     if (!schemas[r]) throw new NotFoundError();
+    if (r === "installments") throw new ConflictError("استخدم صفحة أقساط السيارات في الحسابات لتسجيل الاستحقاقات والتحصيل والسداد.");
     const data = schemas[r].parse(req.body);
     ok(
       res,
@@ -2248,6 +2241,11 @@ router.post(
         driverScopeId: optionalId,
       })
       .parse(req.body);
+    if (['ADMIN','ACCOUNTANT','OPERATIONS_MANAGER','VIEWER'].includes(data.role)) {
+      if(data.userId === req.user.userId) throw new ValidationError('Ask another administrator to change your own access.');
+      await ensureDefaultRoles();
+      return ok(res, await UserService.assignRole(data.userId, {roleId:data.role}, req.user));
+    }
     if (data.userId === req.user.userId)
       throw new ValidationError(
         "Ask another administrator to change your own access.",
@@ -2255,6 +2253,10 @@ router.post(
     ok(
       res,
       await transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(7632902)`;
+        const originalUser=await tx.user.findUniqueOrThrow({where:{id:data.userId}});
+        assertCanGrant(req.user,(await accessFor(originalUser,tx)).permissions);
+
         if (data.role === "CLIENT") {
           if (!data.clientScopeId)
             throw new ValidationError("Choose a client scope.");
@@ -2280,6 +2282,9 @@ router.post(
           where: { id: data.userId },
           data: {
             role: data.role,
+            roleId: null,
+            companyScopeEnabled: false,
+            companyIds: [],
             clientScopeId: data.role === "CLIENT" ? data.clientScopeId : null,
             partnerScopeId:
               data.role === "SUPPLIER" ? data.partnerScopeId : null,
@@ -2288,6 +2293,7 @@ router.post(
           },
           select: { id: true, email: true, role: true },
         });
+        await preserveRoleAdministrators(tx);
         await audit(tx, req, "ACCESS", "user", row.id, data);
         return row;
       }),

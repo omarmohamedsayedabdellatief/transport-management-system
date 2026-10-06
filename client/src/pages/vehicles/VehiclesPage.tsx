@@ -1,3 +1,4 @@
+import { useCatalog } from '../../components/configuration/catalog';
 import { MutationNotice, QueryNotice } from "../../components/ui/MutationNotice";
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,7 +12,9 @@ import { Bus, Plus, Gauge, AlertTriangle, UserCheck, Edit3, Trash2, ShieldAlert 
 import { getComplianceStatus, formatLocalDate } from '../../utils/compliance';
 
 export const VehiclesPage: React.FC = () => {
-  const { canManage } = useAuth();
+  const { can, canEditVehicles, isOperationsManager } = useAuth();
+  const catalog=useCatalog();
+  const [typeVehicle,setTypeVehicle]=useState<Vehicle|null>(null);
   const { t, lang } = useLanguage();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -97,6 +100,7 @@ export const VehiclesPage: React.FC = () => {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
+      if (isOperationsManager) return api.put(`/vehicles/${id}`, {vehicleType:payload.vehicleType});
       const { ownershipType, supplierId, ...rest } = payload;
       return api.put(`/vehicles/${id}`, {
         ...rest,
@@ -148,6 +152,7 @@ export const VehiclesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {typeVehicle && <Modal isOpen onClose={()=>setTypeVehicle(null)} title={lang==='ar'?'تعديل نوع السيارة':'Change vehicle type'}><form onSubmit={async e=>{e.preventDefault();await updateMutation.mutateAsync({id:typeVehicle.id,payload:{vehicleType:typeVehicle.vehicleType}});setTypeVehicle(null);}} className="ops-form-grid"><label>{lang==='ar'?'نوع السيارة':'Vehicle type'}<select value={typeVehicle.vehicleType} onChange={e=>setTypeVehicle({...typeVehicle,vehicleType:e.target.value})}>{catalog.data?.vehicleTypes.filter(t=>t.active||t.code===typeVehicle.vehicleType).map(t=><option key={t.code} value={t.code}>{t.name}</option>)}</select></label><button className="ops-button" disabled={updateMutation.isPending}>{lang==='ar'?'حفظ':'Save'}</button></form></Modal>}
       <QueryNotice failed={isError} retry={refetch} />
       <MutationNotice mutations={[createMutation, updateMutation, deleteMutation]} />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -159,7 +164,7 @@ export const VehiclesPage: React.FC = () => {
               : 'Manage company-owned buses, vans, odometer readings, and statutory inspection certificates'}
           </p>
         </div>
-        {canManage && (
+        {can('vehicles.create') && (
           <button
             onClick={() => {
               setFormData({
@@ -262,7 +267,7 @@ export const VehiclesPage: React.FC = () => {
                   <th className="py-3 px-4">{t('dedicatedDriver')}</th>
                   <th className="py-3 px-4">{t('docExpirations')}</th>
                   <th className="py-3 px-4">{t('status')}</th>
-                  {canManage && <th className="py-3 px-4 text-end">{t('actions')}</th>}
+                  {(canEditVehicles || can('vehicles.delete')) && <th className="py-3 px-4 text-end">{t('actions')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -275,7 +280,7 @@ export const VehiclesPage: React.FC = () => {
                     <tr key={v.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3.5 px-4">
                         <div className="font-mono font-bold text-slate-900 text-sm">{v.plateNumber}</div>
-                        <span className="text-[10px] text-slate-400 uppercase">{v.vehicleType.replace('_', ' ')}</span>
+                        <span className="text-[10px] text-slate-400">{catalog.data?.vehicleTypes.find(t=>t.code===v.vehicleType)?.name || v.vehicleType}</span>
                       </td>
                       <td className="py-3.5 px-4">
                         {v.supplier ? (
@@ -360,23 +365,23 @@ export const VehiclesPage: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <Badge status={v.status} />
                       </td>
-                      {canManage && (
+                      {(canEditVehicles || can('vehicles.delete')) && (
                         <td className="py-3.5 px-4 text-end">
                           <div className="flex items-center justify-end gap-1">
                             <button
-                              onClick={() => openEditModal(v)}
+                              disabled={!canEditVehicles} onClick={() => isOperationsManager ? setTypeVehicle(v) : openEditModal(v)}
                               title={t('edit')}
                               className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             >
                               <Edit3 className="h-4 w-4" />
                             </button>
-                            <button
-                              onClick={() => setDeletingVehicle(v)}
+                            {can('vehicles.delete') && <button
+                              disabled={!can('vehicles.delete')} onClick={() => setDeletingVehicle(v)}
                               title={t('delete')}
                               className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                             >
                               <Trash2 className="h-4 w-4" />
-                            </button>
+                            </button>}
                           </div>
                         </td>
                       )}
@@ -489,11 +494,7 @@ export const VehiclesPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, vehicleType: e.target.value })}
                 className="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
               >
-                <option value="BUS_50_SEATER">{lang === 'ar' ? 'باص كبير (50 مقعد)' : 'Bus (50-Seater)'}</option>
-                <option value="MINIBUS_30_SEATER">{lang === 'ar' ? 'ميني باص (30 مقعد)' : 'Minibus (30-Seater)'}</option>
-                <option value="VAN_14_SEATER">{lang === 'ar' ? 'ميكروباص / فان (14 مقعد)' : 'Van (14-Seater)'}</option>
-                <option value="SEDAN">{lang === 'ar' ? 'سيارة سيدان' : 'Sedan'}</option>
-                <option value="OTHER">{lang === 'ar' ? 'أخرى' : 'Other'}</option>
+                {catalog.data?.vehicleTypes.filter(t=>t.active || t.code===editFormData.vehicleType).map(t=><option key={t.code} value={t.code}>{t.name}</option>)}
               </select>
             </div>
           </div>
@@ -715,11 +716,7 @@ export const VehiclesPage: React.FC = () => {
                   onChange={(e) => setEditFormData({ ...editFormData, vehicleType: e.target.value })}
                   className="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
                 >
-                  <option value="BUS_50_SEATER">{lang === 'ar' ? 'باص كبير (50 مقعد)' : 'Bus (50-Seater)'}</option>
-                  <option value="MINIBUS_30_SEATER">{lang === 'ar' ? 'ميني باص (30 مقعد)' : 'Minibus (30-Seater)'}</option>
-                  <option value="VAN_14_SEATER">{lang === 'ar' ? 'ميكروباص / فان (14 مقعد)' : 'Van (14-Seater)'}</option>
-                  <option value="SEDAN">{lang === 'ar' ? 'سيارة سيدان' : 'Sedan'}</option>
-                  <option value="OTHER">{lang === 'ar' ? 'أخرى' : 'Other'}</option>
+                  {catalog.data?.vehicleTypes.filter(t=>t.active || t.code===editFormData.vehicleType).map(t=><option key={t.code} value={t.code}>{t.name}</option>)}
                 </select>
               </div>
             </div>

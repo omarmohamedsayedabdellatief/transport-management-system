@@ -1,3 +1,4 @@
+import { accessFor } from '../roles/permissions.js';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../prisma.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt.js';
@@ -41,6 +42,7 @@ export class AuthService {
         fullName: user.fullName,
         role: user.role,
         status: user.status,
+        ...await accessFor(user),
       },
       accessToken,
       refreshToken,
@@ -67,7 +69,7 @@ export class AuthService {
       };
 
       const newAccessToken = signAccessToken(payload);
-      return { accessToken: newAccessToken, user: payload };
+      return { accessToken: newAccessToken, user: {...payload, ...await accessFor(user)} };
     } catch {
       throw new UnauthorizedError('Invalid or expired refresh token');
     }
@@ -103,6 +105,8 @@ export class AuthService {
         fullName: true,
         phone: true,
         role: true,
+        roleId: true,
+        companyScopeEnabled: true,
         status: true,
         createdAt: true,
       },
@@ -120,6 +124,8 @@ export class AuthService {
         fullName: true,
         phone: true,
         role: true,
+        roleId: true,
+        companyScopeEnabled: true,
         status: true,
         createdAt: true,
       },
@@ -129,6 +135,6 @@ export class AuthService {
       throw new NotFoundError('User not found');
     }
 
-    return user;
+    return {...user, ...await accessFor(user)};
   }
 }

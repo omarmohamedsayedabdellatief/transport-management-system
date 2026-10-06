@@ -55,6 +55,14 @@ export interface DriverSettlementItem {
   totalOvertime: number;
   totalDeductions: number;
   totalAdvances: number;
+  totalPaid: number;
+  netEarned: number;
+  totalInstallmentOffsets: number;
+  driverInstallmentDue: number;
+  driverInstallmentRemaining: number;
+  driverInstallmentCash: number;
+  installments: InstallmentItem[];
+  entries: {id:string;kind:'PAYMENT'|'DEDUCTION'|'INSTALLMENT_OFFSET';amount:number;date:string;reference:string;notes?:string}[];
   netPayable: number;
   companyBilling: number;
   companyProfit: number;
@@ -64,6 +72,7 @@ export interface DriverSettlementItem {
 }
 
 export interface ExpenseItem {
+  expenseType: "FUEL" | "MAINTENANCE" | "OTHER";
   id: string;
   day?: number;
   month?: number;
@@ -98,6 +107,21 @@ export interface InstallmentItem {
   installmentNumber: number;
   bankDueDate: string;
   bankAmount: number;
+  driverId?: string;
+  driverName?: string;
+  driverDueDate?: string;
+  driverAmount: number;
+  bankPaid: number;
+  bankRemaining: number;
+  driverRemaining: number;
+  driverCash: number;
+  driverOffset: number;
+  driverSettled: number;
+  bankStatus: string;
+  driverStatus: string;
+  bankOverdue: boolean;
+  driverOverdue: boolean;
+  payments: {id:string;kind:string;amount:number;date:string;reference:string;treasuryEntryId?:string}[];
   clientDueDate?: string;
   clientAmount?: number;
   margin?: number;
@@ -120,6 +144,7 @@ export interface ClientTransactionItem {
 }
 
 export interface IncomeStatementData {
+  installmentCashFlow?: {bankPaid:number;driverCollected:number;driverOffsets:number;netCash:number};
   period: { month: any; year: any; status?: string; closedAt?: string; closedBy?: string };
   revenues?: {
     grossBilling: number;
@@ -246,6 +271,10 @@ export const accountingApi = {
     const res = await api.get('/accounting/settlements', { params });
     return res.data.data;
   },
+  deductDriverSettlement: async (data: any) => {
+    const res = await api.post('/accounting/settlements/deduct', data);
+    return res.data.data;
+  },
   payDriverSettlement: async (data: any) => {
     const res = await api.post('/accounting/settlements/pay', data);
     return res.data.data;
@@ -292,16 +321,12 @@ export const accountingApi = {
     const res = await api.get('/accounting/installments/summary', { params });
     return res.data.data;
   },
-  toggleInstallmentStatus: async (id: string, status: string) => {
-    const res = await api.put(`/accounting/installments/${id}/status`, { status });
-    return res.data.data;
-  },
   createInstallment: async (data: any) => {
     const res = await api.post('/accounting/installments', data);
     return res.data.data;
   },
-  payInstallmentFromTreasury: async (id: string, accountId: string) => {
-    const res = await api.post(`/accounting/installments/${id}/pay`, { accountId });
+  recordInstallmentPayment: async ({id, bank, ...data}: any) => {
+    const res = await api.post(`/accounting/installments/${id}/${bank ? 'pay' : 'collect'}`, data);
     return res.data.data;
   },
   getVehicleEconomics: async (params?: any) => {

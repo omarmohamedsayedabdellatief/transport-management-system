@@ -13,6 +13,7 @@ export class RouteService {
         select: {
           id: true,
           routeName: true,
+          rates: {include:{billingType:true}},
           startLocation: true,
           finalDestination: true,
           clientPricePerTrip: true,
@@ -38,6 +39,7 @@ export class RouteService {
     return prisma.route.findMany({
       where,
       include: {
+        rates: {include:{billingType:true}},
         client: { select: { id: true, companyName: true } },
         supplier: { select: { id: true, name: true, phone: true } },
         defaultVehicle: { include: { supplier: true } },
@@ -53,6 +55,7 @@ export class RouteService {
     const route = await prisma.route.findUnique({
       where: { id },
       include: {
+        rates: {include:{billingType:true}},
         client: true,
         supplier: true,
         defaultVehicle: { include: { assignedDriver: true, supplier: true } },
@@ -68,7 +71,8 @@ export class RouteService {
   static async createRoute(data: any) {
     const { stops, ...routeData } = data;
 
-    return prisma.route.create({
+    return prisma.$transaction(async tx => {
+    const created = await tx.route.create({
       data: {
         ...routeData,
         stops: stops?.length
@@ -85,11 +89,15 @@ export class RouteService {
           : undefined,
       },
       include: {
+        rates: {include:{billingType:true}},
         client: true,
         stops: { orderBy: { stopOrder: 'asc' } },
         defaultVehicle: true,
         defaultDriver: true,
       },
+    });
+    await tx.routeRate.create({data:{routeId:created.id,billingTypeId:'10000000-0000-4000-a000-000000000001',departureTime:'07:00',saleAmount:created.clientPricePerTrip,costAmount:created.supplierCostPerTrip,driverAllowance:created.driverTripAllowance,vehicleCost:created.vehicleRentalCost}});
+    return tx.route.findUnique({where:{id:created.id},include:{rates:{include:{billingType:true}},client:true,stops:{orderBy:{stopOrder:"asc"}},defaultVehicle:true,defaultDriver:true}});
     });
   }
 
@@ -108,7 +116,11 @@ export class RouteService {
         await tx.routeStop.deleteMany({ where: { routeId: id } });
         if (stops.length) await tx.routeStop.createMany({ data: stops.map((s: any, index: number) => ({ routeId: id, stopOrder: s.stopOrder || index + 1, stopName: s.stopName, pickupTimeOffsetMin: s.pickupTimeOffsetMin || 0, latitude: s.latitude, longitude: s.longitude, notes: s.notes })) });
       }
-      return tx.route.update({ where: { id }, data: routeData, include: { client: true, stops: { orderBy: { stopOrder: 'asc' } }, defaultVehicle: true, defaultDriver: true } });
+      const mapping = {clientPricePerTrip:'saleAmount',supplierCostPerTrip:'costAmount',driverTripAllowance:'driverAllowance',vehicleRentalCost:'vehicleCost'};
+      const prices=Object.fromEntries(Object.entries(mapping).filter(([key])=>routeData[key]!==undefined).map(([key,target])=>[target,routeData[key]]));
+      if(Object.keys(prices).length) await tx.routeRate.updateMany({where:{routeId:id,billingTypeId:'10000000-0000-4000-a000-000000000001'},data:prices});
+      return tx.route.update({ where: { id }, data: routeData, include: { rates: {include:{billingType:true}},
+        client: true, stops: { orderBy: { stopOrder: 'asc' } }, defaultVehicle: true, defaultDriver: true } });
     });
   }
 

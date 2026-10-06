@@ -1,0 +1,91 @@
+/* Leave enough space for Arabic glyphs and let content determine card heights. */
+.accounting-page,
+.accounting-modal {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.85;
+  --text-xs--line-height: 1.85;
+  --text-sm--line-height: 1.8;
+  --text-base--line-height: 1.75;
+  --text-lg--line-height: 1.7;
+  --text-xl--line-height: 1.65;
+  --text-2xl--line-height: 1.6;
+}
+
+:is(.accounting-page, .accounting-modal) .font-black {
+  font-weight: 650;
+}
+
+:is(.accounting-page, .accounting-modal) :where(.flex, .grid) > * {
+  min-width: 0;
+}
+
+:is(.accounting-page, .accounting-modal) :where(h1, h2, h3, h4, p, label, button, .font-mono) {
+  overflow-wrap: anywhere;
+}
+
+:is(.accounting-page, .accounting-modal) svg {
+  flex-shrink: 0;
+}
+
+:is(.accounting-page, .accounting-modal) .font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Use the available content width, including when the sidebar is open. */
+.accounting-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+
+.accounting-summary-metrics {
+  grid-template-columns: 1fr;
+}
+
+.accounting-cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+}
+
+.accounting-months {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@container (min-width: 420px) {
+  .accounting-summary-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .accounting-months { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@container (min-width: 660px) {
+  .accounting-summary-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .accounting-months { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+}
+
+@container (min-width: 1200px) {
+  .accounting-summary-metrics { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .accounting-months { grid-template-columns: repeat(13, minmax(0, 1fr)); }
+}
+
+.accounting-header-card > :first-child {
+  align-items: flex-start;
+}
+
+:is(.accounting-page, .accounting-modal) button {
+  line-height: 1.8;
+}
+
+@media (max-width: 640px) {
+  .accounting-header-card {
+    padding: 16px;
+  }
+
+  .accounting-page h1 {
+    font-size: 18px;
+  }
+}
+
+.accounting-page { container-type: inline-size; }
+
+.accounting-modal :where(h2, h3) {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.8;
+}

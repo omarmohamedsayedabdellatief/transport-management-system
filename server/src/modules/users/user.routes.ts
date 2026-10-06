@@ -11,6 +11,8 @@ router.use(authenticate, requireRole([UserRole.ADMIN]));
 
 router.get('/', UserController.list);
 router.post('/', UserController.create);
+router.patch('/:id/companies', UserController.updateCompanies);
+router.patch('/:id/role', UserController.assignRole);
 router.patch('/:id/status', UserController.updateStatus);
 
 export default router;

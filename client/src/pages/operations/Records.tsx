@@ -546,7 +546,7 @@ export function RecordFields({ fields, form, setForm, lookup }: any) {
 export function Records({ resource }: { resource: string }) {
   const queryClient = useQueryClient();
   const w = useWords();
-  const { canManage } = useAuth();
+  const { can, canManage, canFinance } = useAuth();
   const config = configs[resource];
   const query = useData("/records/" + resource);
   const lookup = useData("/bootstrap");
@@ -800,19 +800,20 @@ export function Records({ resource }: { resource: string }) {
       ) : (
         <DataTable
           rows={query.data}
-          columns={columns}
+          columns={canFinance ? columns : columns.filter(c=>!["saleRate","supplierRate"].includes(c.key))}
           actions={
-            canManage
+            (canManage || (resource === 'plans' && can('trips.create')))
               ? (r: any) => (
                   <>
                     <Button
+                      disabled={!canManage}
                       secondary
                       onClick={() => open(r)}
                       aria-label={w("Edit", "تعديل")}
                     >
                       <Edit3 size={15} />
                     </Button>
-                    {resource === "plans" && r.active && (
+                    {resource === "plans" && can('trips.create') && r.active && (
                       <Button secondary onClick={() => setGenerate(r)}>
                         <CalendarRange size={15} />
                         {w("Generate", "إنشاء الرحلات")}

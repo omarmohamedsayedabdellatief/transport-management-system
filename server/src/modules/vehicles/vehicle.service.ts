@@ -1,11 +1,12 @@
+import { companyScope } from '../../company-scope.js';
 import { prisma } from '../../prisma.js';
-import { NotFoundError, ConflictError } from '../../types/index.js';
+import { NotFoundError, ConflictError, ValidationError } from '../../types/index.js';
 import { VehicleStatus, VehicleType } from '@prisma/client';
 
 export class VehicleService {
   static async getAllVehicles(params?: {
     status?: VehicleStatus;
-    vehicleType?: VehicleType;
+    vehicleType?: string;
     search?: string;
     supplierId?: string;
     ownership?: 'COMPANY' | 'SUPPLIER';
@@ -83,7 +84,12 @@ export class VehicleService {
     return vehicle;
   }
 
+  static async validateType(code: string, current?: string) {
+    const category = await prisma.vehicleCategory.findUnique({where:{code}});
+    if (!category || (!category.active && code !== current)) throw new ValidationError('Choose an active vehicle type from settings.');
+  }
   static async createVehicle(data: any) {
+    await this.validateType(data.vehicleType);
     const existing = await prisma.vehicle.findUnique({
       where: { plateNumber: data.plateNumber.trim() },
     });
@@ -109,7 +115,9 @@ export class VehicleService {
   }
 
   static async updateVehicle(id: string, data: any) {
-    await this.getVehicleById(id);
+    const current = await this.getVehicleById(id);
+    if (data.vehicleType) await this.validateType(data.vehicleType, current.vehicleType);
+    if (companyScope.getStore() && data.supplierId && !(await prisma.partner.findUnique({ where: { id: data.supplierId } }))) throw new ValidationError('Choose a supplier assigned to your companies.');
     const updateData = { ...data };
     if (updateData.insuranceExpiry) updateData.insuranceExpiry = new Date(updateData.insuranceExpiry);
     if (updateData.licenseExpiry) updateData.licenseExpiry = new Date(updateData.licenseExpiry);

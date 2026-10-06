@@ -7,7 +7,7 @@ export const createVehicleSchema = z.object({
     make: z.string().min(2, 'Make is required'),
     model: z.string().min(1, 'Model is required'),
     manufacturingYear: z.number().int().min(1990).max(2035),
-    vehicleType: z.nativeEnum(VehicleType),
+    vehicleType: z.string().trim().min(1).max(80),
     capacity: z.number().int().positive('Capacity must be positive'),
     currentMileage: z.number().int().min(0).default(0),
     status: z.nativeEnum(VehicleStatus).default(VehicleStatus.AVAILABLE),

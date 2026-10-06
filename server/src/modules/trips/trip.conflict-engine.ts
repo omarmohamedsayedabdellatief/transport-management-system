@@ -13,11 +13,11 @@ export class TripConflictEngine {
     scheduledDeparture: Date;
     expectedArrival: Date;
     excludeTripId?: string;
-  }) {
+  }, db: any = prisma) {
     const { driverId, vehicleId, tripDate, scheduledDeparture, expectedArrival, excludeTripId } = params;
 
     // 1. DRIVER-VEHICLE 1:1 PAIRING VALIDATION
-    const driver = await prisma.driver.findUnique({
+    const driver = await db.driver.findUnique({
       where: { id: driverId },
       include: { assignedVehicle: true },
     });
@@ -52,7 +52,7 @@ export class TripConflictEngine {
     }
 
     // 3. VEHICLE COMPLIANCE VALIDATION
-    const vehicle = driver.assignedVehicle || (await prisma.vehicle.findUnique({ where: { id: vehicleId } }));
+    const vehicle = driver.assignedVehicle || (await db.vehicle.findUnique({ where: { id: vehicleId } }));
     if (!vehicle) {
       throw new ValidationError('Vehicle not found');
     }
@@ -79,7 +79,7 @@ export class TripConflictEngine {
     const effectiveStart = new Date(scheduledDeparture.getTime() - BUFFER_MS);
     const effectiveEnd = new Date(expectedArrival.getTime() + BUFFER_MS);
 
-    const conflictingTrip = await prisma.trip.findFirst({
+    const conflictingTrip = await db.trip.findFirst({
       where: {
         tripStatus: { not: 'CANCELLED' },
         id: excludeTripId ? { not: excludeTripId } : undefined,

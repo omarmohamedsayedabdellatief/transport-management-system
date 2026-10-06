@@ -1,3 +1,4 @@
+import { canVisit } from './navigation';
 import { NavLink } from "react-router-dom";
 import { LayoutDashboard, ClipboardList, CalendarDays, BookOpen, Receipt } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
@@ -16,5 +17,5 @@ export function MobileNav() {
     { to: "/schedules", en: "Schedules", ar: "الجداول", Icon: CalendarDays },
     { to: "/guide", en: "Help", ar: "المساعدة", Icon: BookOpen },
   ];
-  return <nav className="ops-mobile-nav" aria-label={w("Quick navigation", "التنقل السريع")}>{links.map(({to,en,ar,Icon}) => <NavLink key={to} to={to} end={to === "/"}><Icon size={20}/><span>{w(en,ar)}</span></NavLink>)}</nav>;
+  return <nav className="ops-mobile-nav" aria-label={w("Quick navigation", "التنقل السريع")}>{links.filter(link=>canVisit(link.to,user)).map(({to,en,ar,Icon}) => <NavLink key={to} to={to} end={to === "/"}><Icon size={20}/><span>{w(en,ar)}</span></NavLink>)}</nav>;
 }

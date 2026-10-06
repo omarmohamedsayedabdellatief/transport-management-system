@@ -28,6 +28,7 @@ router.put('/overtime/:id', AccountingController.updateDriverOvertime);
 router.delete('/overtime/:id', AccountingController.deleteDriverOvertime);
 router.get('/settlements', AccountingController.getDriverSettlements);
 router.post('/settlements/pay', AccountingController.payDriverSettlement);
+router.post('/settlements/deduct', AccountingController.deductDriverSettlement);
 
 // 4. Supplier Transactions & Settlements (الموردين والشركاء)
 router.get('/supplier-transactions', AccountingController.listSupplierTransactions);
@@ -53,6 +54,7 @@ router.get('/installments', AccountingController.listInstallments);
 router.get('/installments/summary', AccountingController.getInstallmentsSummary);
 router.post('/installments', AccountingController.createInstallment);
 router.post('/installments/:id/pay', AccountingController.payInstallmentFromTreasury);
+router.post('/installments/:id/collect', AccountingController.collectDriverInstallment);
 
 // 8. Staff Payroll (رواتب الموظفين)
 router.get('/staff-payroll', AccountingController.listStaffPayroll);

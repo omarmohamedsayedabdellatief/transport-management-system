@@ -10,7 +10,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { Wrench, Plus, CheckCircle2, Trash2, AlertTriangle } from 'lucide-react';
 
 export const MaintenancePage: React.FC = () => {
-  const { canManage } = useAuth();
+  const { canManage, canFinance } = useAuth();
   const { t, lang } = useLanguage();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -178,6 +178,7 @@ export const MaintenancePage: React.FC = () => {
 
       {/* Summary KPI Highlights */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {canFinance && <>
         <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
           <span className="text-xs font-semibold text-slate-500 uppercase">{t('totalMaintenanceSpend')}</span>
           <div className="mt-1 text-2xl font-bold text-slate-900 font-mono">
@@ -189,6 +190,7 @@ export const MaintenancePage: React.FC = () => {
               : (lang === 'ar' ? 'إجمالي تكلفة صيانة الأسطول' : 'Fleet lifetime service cost')}
           </span>
         </div>
+        </>}
         <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
           <span className="text-xs font-semibold text-slate-500 uppercase">{t('totalServiceEvents')}</span>
           <div className="mt-1 text-2xl font-bold text-slate-900 font-mono">{records.length}</div>
@@ -321,7 +323,7 @@ export const MaintenancePage: React.FC = () => {
                   <th className="py-3 px-4">{lang === 'ar' ? 'التاريخ' : 'Date'}</th>
                   <th className="py-3 px-4">{lang === 'ar' ? 'التفاصيل' : 'Description'}</th>
                   <th className="py-3 px-4">{lang === 'ar' ? 'الورشة / جهة الصيانة' : 'Workshop / Provider'}</th>
-                  <th className="py-3 px-4">{lang === 'ar' ? 'التكلفة' : 'Cost'}</th>
+                  {canFinance && <th className="py-3 px-4">{lang === 'ar' ? 'التكلفة' : 'Cost'}</th>}
                   <th className="py-3 px-4">{t('status')}</th>
                   {canManage && <th className="py-3 px-4 text-end">{t('actions')}</th>}
                 </tr>
@@ -354,9 +356,9 @@ export const MaintenancePage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 text-slate-700 max-w-xs truncate">{r.description}</td>
                     <td className="py-3.5 px-4 text-slate-600">{r.serviceProvider || (lang === 'ar' ? 'ورشة داخلية' : 'In-house garage')}</td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
-                      EGP {Number(r.cost).toLocaleString()}
-                    </td>
+                    {canFinance && <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                      {canFinance ? `EGP ${Number(r.cost).toLocaleString()}` : '—'}
+                    </td>}
                     <td className="py-3.5 px-4">
                       <Badge status={r.status} />
                     </td>

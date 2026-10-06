@@ -1,4 +1,7 @@
+import excelRoutes from './trip-excel.routes.js';
 import { Router } from 'express';
+import { z } from 'zod';
+import { prisma } from '../../prisma.js';
 import { TripController } from './trip.controller.js';
 import { authenticate } from '../../middlewares/auth.middleware.js';
 import { requireRole } from '../../middlewares/rbac.middleware.js';
@@ -9,8 +12,19 @@ import { UserRole } from '@prisma/client';
 const router = Router();
 
 router.use(authenticate);
+router.use('/excel', excelRoutes);
 
 router.get('/', TripController.list);
+router.get('/template-exclusions', async (req, res, next) => {
+  try {
+    const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).parse(req.query.date);
+    const events = await prisma.auditEvent.findMany({
+      where: { action: 'EXCLUDE_DAILY_TEMPLATE', detail: { contains: `"date":"${date}"` } },
+      orderBy: { createdAt: 'desc' }, take: 1000,
+    });
+    res.json({ success: true, data: events.map(event => ({ id: event.id, createdAt: event.createdAt, ...JSON.parse(event.detail) })) });
+  } catch (err) { next(err); }
+});
 router.get('/:id', TripController.getById);
 
 router.post(

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { TripService } from './trip.service.js';
 import { TripConflictEngine } from './trip.conflict-engine.js';
+import { AuthenticatedRequest } from '../../types/index.js';
 import { sendSuccess } from '../../utils/response.js';
 
 export class TripController {
@@ -83,7 +84,7 @@ export class TripController {
     try {
       const { routeId, startDate, endDate, shifts, departureTime, durationMinutes } = req.body;
       const result = await TripService.batchGenerateTrips({
-        routeId,
+        routeId, billingTypeId:req.body.billingTypeId, direction:req.body.direction,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         shifts,
@@ -107,6 +108,7 @@ export class TripController {
         departureTime,
         tripStatus,
         routeOverrides,
+        actorId: (req as AuthenticatedRequest).user!.userId,
       });
       sendSuccess(res, result, 'Daily trips generation from route templates completed');
     } catch (err) {

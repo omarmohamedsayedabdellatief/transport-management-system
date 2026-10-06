@@ -1,3 +1,4 @@
+import { canVisit } from './navigation';
 import React, { useEffect, useState, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -110,12 +111,11 @@ export const Sidebar = ({ isOpen = false, onClose }: any) => {
           items: [
             ["/accounting", "Accounts & Treasury", "الحسابات والخزينة العامة", Receipt],
             ["/settings", "Workspace settings", "إعدادات التشغيل", Settings],
-            ...(isAdmin
-              ? [
+            ...[
                   ["/users", "Users", "المستخدمون", UserCog],
+                  ["/roles", "Roles & permissions", "الأدوار والصلاحيات", UserCog],
                   ["/audit", "Activity log", "سجل النشاط", History],
-                ]
-              : []),
+                ],
           ],
         },
       ];
@@ -154,7 +154,7 @@ export const Sidebar = ({ isOpen = false, onClose }: any) => {
           </button>
         </div>
         <nav aria-label={w("Main navigation", "التنقل الرئيسي")}>
-          {groups.map((g) => (
+          {groups.map(g => ({...g, items:g.items.filter(item => canVisit(String(item[0]),user))})).filter(g => g.items.length).map((g) => (
             <div className="ops-nav-group" key={g.label}>
               <details
                 key={g.label + location.pathname}

@@ -1,3 +1,4 @@
+import { AccountingActionButton } from './AccountingActionButton';
 import React, { useState } from 'react';
 import {
   DollarSign,
@@ -140,13 +141,13 @@ export const ExpensesPayrollTab: React.FC<ExpensesPayrollTabProps> = ({
               </div>
             </div>
 
-            <button
+            <AccountingActionButton
               onClick={onOpenAddExpense}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
             >
               <Plus className="h-4 w-4" />
               <span>{isAr ? 'تسجيل بند مصروف جديد' : 'Add Expense'}</span>
-            </button>
+            </AccountingActionButton>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
@@ -190,7 +191,7 @@ export const ExpensesPayrollTab: React.FC<ExpensesPayrollTabProps> = ({
                         <td className="py-2.5 px-4 text-slate-600 font-mono">{exp.vehicleNumber || '-'}</td>
                         <td className="py-2.5 px-4 text-slate-500">{exp.notes || '-'}</td>
                         <td className="py-2.5 px-4 text-center">
-                          <button
+                          <AccountingActionButton
                             onClick={() => {
                               if (window.confirm(isAr ? 'حذف هذا المصروف؟' : 'Delete expense?')) {
                                 onDeleteExpense(exp.id);
@@ -200,7 +201,7 @@ export const ExpensesPayrollTab: React.FC<ExpensesPayrollTabProps> = ({
                             title={isAr ? 'حذف' : 'Delete'}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </AccountingActionButton>
                         </td>
                       </tr>
                     ))
@@ -218,7 +219,7 @@ export const ExpensesPayrollTab: React.FC<ExpensesPayrollTabProps> = ({
       {subTab === 'payroll' && (
         <div className="space-y-4">
           {/* Payroll KPI Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="accounting-metrics grid gap-3">
             <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
               <span className="text-[11px] font-bold text-slate-500 block">
                 {isAr ? `إجمالي الرواتب المنصرفة (${currentMonthLabel})` : `Disbursed Payroll (${currentMonthLabel})`}
@@ -286,13 +287,13 @@ export const ExpensesPayrollTab: React.FC<ExpensesPayrollTabProps> = ({
               </div>
             </div>
 
-            <button
+            <AccountingActionButton
               onClick={onOpenAddPayroll}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
             >
               <Plus className="h-4 w-4" />
               <span>{isAr ? 'تسجيل وصرف راتب موظف جديد' : 'Add Staff Payroll'}</span>
-            </button>
+            </AccountingActionButton>
           </div>
 
           {/* Payroll Table */}
@@ -372,7 +373,7 @@ export const ExpensesPayrollTab: React.FC<ExpensesPayrollTabProps> = ({
                           </td>
                           <td className="py-2.5 px-4 text-slate-500 max-w-xs truncate">{p.notes || '-'}</td>
                           <td className="py-2.5 px-4 text-center">
-                            <button
+                            <AccountingActionButton
                               onClick={() => {
                                 if (
                                   window.confirm(
@@ -388,7 +389,7 @@ export const ExpensesPayrollTab: React.FC<ExpensesPayrollTabProps> = ({
                               title={isAr ? 'حذف مسير الراتب' : 'Delete'}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            </AccountingActionButton>
                           </td>
                         </tr>
                       ))

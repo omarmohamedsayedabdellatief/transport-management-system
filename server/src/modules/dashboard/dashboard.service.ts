@@ -1,3 +1,4 @@
+import { companyScope } from '../../company-scope.js';
 import { prisma } from '../../prisma.js';
 import { VehicleStatus, DutyStatus, ClientStatus, ContractStatus, TripStatus } from '@prisma/client';
 
@@ -11,6 +12,26 @@ export class DashboardService {
 
     const thirtyDaysAhead = new Date(todayEnd);
     thirtyDaysAhead.setDate(thirtyDaysAhead.getDate() + 30);
+
+    if (companyScope.getStore()) {
+      const [vehicles, drivers, contracts, activeClients, trips] = await Promise.all([
+        prisma.vehicle.findMany(), prisma.driver.findMany(),
+        prisma.contract.findMany({ where: { status: 'ACTIVE' } }),
+        prisma.client.count({ where: { status: 'ACTIVE' } }),
+        prisma.trip.findMany({ where: { tripDate: { gte: minTripDate, lte: maxTripDate } } }),
+      ]);
+      const expiredVehicle = (v: any) => [v.insuranceExpiry, v.licenseExpiry, v.inspectionExpiry].some(d => d < minTripDate);
+      const soonVehicle = (v: any) => !expiredVehicle(v) && [v.insuranceExpiry, v.licenseExpiry, v.inspectionExpiry].some(d => d <= thirtyDaysAhead);
+      const expiredContracts = contracts.filter(c => c.endDate < minTripDate).length;
+      const expiringContracts = contracts.filter(c => c.endDate >= minTripDate && c.endDate <= thirtyDaysAhead).length;
+      return {
+        vehicles: { total: vehicles.length, available: vehicles.filter(v => v.status === 'AVAILABLE').length, assigned: vehicles.filter(v => ['ASSIGNED','ON_TRIP'].includes(v.status)).length, underMaintenance: vehicles.filter(v => v.status === 'UNDER_MAINTENANCE').length },
+        drivers: { total: drivers.length, available: drivers.filter(d => d.dutyStatus === 'AVAILABLE').length, assigned: drivers.filter(d => ['ASSIGNED','ON_DUTY'].includes(d.dutyStatus)).length },
+        clients: { active: activeClients }, contracts: { active: contracts.length, expiringSoon: expiringContracts },
+        tripsToday: { total: trips.length, completed: trips.filter(t => t.tripStatus === 'COMPLETED').length, inProgress: trips.filter(t => t.tripStatus === 'IN_PROGRESS').length, scheduled: trips.filter(t => t.tripStatus === 'SCHEDULED').length },
+        alerts: { expiredDriverLicenses: drivers.filter(d => d.licenseExpirationDate < minTripDate).length, expiringDriverLicenses: drivers.filter(d => d.licenseExpirationDate >= minTripDate && d.licenseExpirationDate <= thirtyDaysAhead).length, expiredVehicleDocs: vehicles.filter(expiredVehicle).length, expiringVehicleDocs: vehicles.filter(soonVehicle).length, expiredContracts, expiringContracts },
+      };
+    }
 
     const [
       vehicleAgg,

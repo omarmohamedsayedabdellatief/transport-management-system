@@ -1,3 +1,6 @@
+import { isTreasuryOwner } from '../roles/permissions.js';
+import { prisma } from '../../prisma.js';
+import { recordInstallmentPayment } from './installments.js';
 import { Request, Response, NextFunction } from 'express';
 import { AccountingService } from './accounting.service.js';
 
@@ -8,7 +11,9 @@ export class AccountingController {
 
   static async listTreasuryOverview(req: Request, res: Response, next: NextFunction) {
     try {
-      const data = await AccountingService.listTreasuryOverview();
+      const data = isTreasuryOwner((req as any).user)
+        ? { ...await AccountingService.listTreasuryOverview(), balancesVisible: true }
+        : { balancesVisible: false, accounts: await prisma.treasuryAccount.findMany({where:{active:true},select:{id:true,name:true,kind:true,currency:true},orderBy:{name:'asc'}}) };
       res.json({ success: true, data });
     } catch (error) {
       next(error);
@@ -151,6 +156,14 @@ export class AccountingController {
     } catch (error) {
       next(error);
     }
+  }
+
+  static async deductDriverSettlement(req: Request, res: Response, next: NextFunction) {
+    try {
+      const actorId = (req as any).user?.userId || 'SYSTEM';
+      const data = await AccountingService.deductDriverSettlement({ ...req.body, actorId });
+      res.json({ success: true, data, message: 'تم تسجيل خصم السائق' });
+    } catch (error) { next(error); }
   }
 
   static async payDriverSettlement(req: Request, res: Response, next: NextFunction) {
@@ -327,12 +340,23 @@ export class AccountingController {
     }
   }
 
+  static async collectDriverInstallment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await recordInstallmentPayment({ ...req.body, installmentId: req.params.id,
+        kind: req.body.method === 'OFFSET' ? 'DRIVER_OFFSET' : req.body.method === 'CASH' ? 'DRIVER_CASH' : 'INVALID',
+        actorId: (req as any).user.userId });
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  }
+
   static async payInstallmentFromTreasury(req: Request, res: Response, next: NextFunction) {
     try {
       const actorId = (req as any).user?.userId || 'SYSTEM';
       const data = await AccountingService.payInstallmentFromTreasury({
         installmentId: (req.params.id || req.body.installmentId) as string,
         accountId: req.body.accountId,
+        amount: req.body.amount,
+        requestKey: req.body.requestKey,
         date: req.body.date,
         reference: req.body.reference,
         notes: req.body.notes,

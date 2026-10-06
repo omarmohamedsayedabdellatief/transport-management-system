@@ -16,7 +16,7 @@ export const Navbar = ({ onToggleSidebar, sidebarOpen = false }: { onToggleSideb
   const [search, setSearch] = useState("");
   const ar = lang === "ar";
   const portal = ["DRIVER", "CLIENT", "SUPPLIER"].includes(user?.role || "");
-  const pages = allowedDestinations(user?.role);
+  const pages = allowedDestinations(user);
   const current = pages.find(([path]) => path === pathname);
   const results = pages.filter((page) => page.join(" ").toLowerCase().includes(search.trim().toLowerCase()));
   const closeSearch = () => { setSearchOpen(false); setSearch(""); };

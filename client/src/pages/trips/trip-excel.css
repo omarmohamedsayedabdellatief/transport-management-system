@@ -1,0 +1,90 @@
+.trip-excel {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.85;
+}
+.trip-excel :where(label, summary, p, td, th) {
+  overflow-wrap: anywhere;
+}
+.trip-excel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.trip-excel fieldset {
+  min-width: 0;
+}
+.trip-excel input[type="checkbox"] {
+  margin: 5px 0;
+  flex-shrink: 0;
+}
+.excel-scope {
+  border: 1px solid #dfe8e3;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-height: 220px;
+  overflow: auto;
+}
+.excel-scope label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.excel-file {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: #f1f7f4;
+  border-radius: 12px;
+}
+.excel-file input {
+  max-width: 100%;
+}
+.excel-warning {
+  padding: 12px;
+  border: 1px solid #f6d18b;
+  background: #fff8e9;
+  border-radius: 10px;
+}
+.excel-warning label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.excel-row {
+  border: 1px solid #dfe8e3;
+  padding: 12px;
+  border-radius: 10px;
+  margin-block: 8px;
+}
+.excel-row .ops-form-grid {
+  margin-top: 12px;
+}
+.excel-preview {
+  border: 1px solid #8ab9a5;
+  padding: 16px;
+  border-radius: 14px;
+}
+.excel-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+}
+.excel-counts > div {
+  padding: 12px;
+  border-radius: 10px;
+  background: #f1f7f4;
+  display: flex;
+  flex-direction: column;
+}
+.excel-counts strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.trip-excel button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

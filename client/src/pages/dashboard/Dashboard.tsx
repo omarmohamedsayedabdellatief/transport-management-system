@@ -1,3 +1,5 @@
+import { useAuth } from '../../contexts/AuthContext';
+import { OperationsOverview } from './OperationsOverview';
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
@@ -34,6 +36,10 @@ import {
 import { Link } from 'react-router-dom';
 
 export const Dashboard: React.FC = () => {
+  const {canFinance}=useAuth();
+  return canFinance ? <FullDashboard/> : <OperationsOverview/>;
+};
+const FullDashboard: React.FC = () => {
   const { t, lang } = useLanguage();
   const isAr = lang === 'ar';
   const queryClient = useQueryClient();
